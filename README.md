@@ -1,4 +1,4 @@
-# Apifactory (Python)
+# Apifactory (NodeJS)
 
 Web framework for API-first development via OpenAPI specification with included validation according
 to OpenAPI based on fastify and @apidevtools/json-schema-ref-parser.
