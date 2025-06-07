@@ -64,8 +64,8 @@ paths:
 ```
 
 ### ./controllers/tasks.js
-```python
-# name of module ignored totally
+```js
+// name of module ignored totally
 
 const tasks = new Map();
 let lastId = 0;
