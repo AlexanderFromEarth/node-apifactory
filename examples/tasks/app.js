@@ -1,4 +1,4 @@
-import {service} from '#apifactory';
+import {service} from '#node-apifactory';
 
 const app = await service();
 

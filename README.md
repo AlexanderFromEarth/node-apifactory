@@ -6,7 +6,7 @@ to OpenAPI based on fastify and @apidevtools/json-schema-ref-parser.
 ## Installation
 
 ```bash
-pip install apifactory
+npm install node-apifactory
 ```
 
 ## Usage
@@ -63,7 +63,7 @@ paths:
                     format: int32
 ```
 
-### ./controllers/tasks.py
+### ./controllers/tasks.js
 ```python
 # name of module ignored totally
 
@@ -78,9 +78,9 @@ export async function createTask(params) {
 }
 ```
 
-### ./app.py
-```python
-import {service} from 'apifactory';
+### ./app.js
+```js
+import {service} from 'node-apifactory';
 
 const app = await service();
 
