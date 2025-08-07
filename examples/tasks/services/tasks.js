@@ -7,7 +7,7 @@ export async function getTasks() {
 
 export async function createTask(params) {
   lastId++;
-  tasks.set(lastId, {...params.body, id: lastId});
+  tasks.set(lastId, {...params.task, id: lastId});
 
   return lastId;
 }
@@ -17,13 +17,13 @@ export async function getTask(params) {
 }
 
 export async function updateTask(params) {
-  const task = tasks.get(params);
+  const task = tasks.get(params.taskId);
 
-  if ('title' in params) {
-    task.title = params.title;
+  if ('title' in params.taskParams) {
+    task.title = params.taskParams.title;
   }
-  if ('description' in params) {
-    task.description = params.description;
+  if ('description' in params.taskParams) {
+    task.description = params.taskParams.description;
   }
 }
 

@@ -1,5 +1,5 @@
-import {service} from '#node-apifactory';
+import {http} from '#node-apifactory';
 
-const app = await service();
+const app = await http({server: {labels: {app: 'atasks'}}});
 
-app.listen({port: 8000});
+await app.run();

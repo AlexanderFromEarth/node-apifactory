@@ -21,9 +21,12 @@ info:
   description: Title
   version: 1.0.0
 servers:
-  - url: 'http://127.0.0.1:8000'
+  - url: 'http://localhost:8000'
+  - url: 'http://localhost:8000'
+    x-labels:
+      app: tasks
 paths:
-  /users/:userId/tasks:
+  /users/{userId}/tasks:
     parameters:
       - name: userId
         in: path
@@ -35,6 +38,7 @@ paths:
       # should correlate with method in controllers directory
       operationId: createTask
       requestBody:
+        x-name: task
         required: true
         content:
           application/json:
@@ -63,7 +67,7 @@ paths:
                     format: int32
 ```
 
-### ./controllers/tasks.js
+### ./services/tasks.js
 ```js
 // name of module ignored totally
 
@@ -72,7 +76,7 @@ let lastId = 0;
 
 export async function createTask(params) {
   lastId++;
-  tasks.set(lastId, {...params.body, id: lastId});
+  tasks.set(lastId, {...params.task, id: lastId});
 
   return lastId;
 }
@@ -80,11 +84,11 @@ export async function createTask(params) {
 
 ### ./app.js
 ```js
-import {service} from 'node-apifactory';
+import {http} from 'node-apifactory';
 
-const app = await service();
+const app = await http({server: {labels: {app: 'tasks'}}});
 
-app.listen({port: 8000});
+await app.run();
 ```
 
 ## Configuration
@@ -93,8 +97,12 @@ All configurable parameters set by environment variables.
 Below listed variables and their purposes with default values:
 
 ```dotenv
-# Sets path to directory with controller files
-APIFACTORY_CONTROLLERS_PATH=./controllers
+# Sets path to directory with service files
+SERVICES_PATH=./services
 # Sets path to root of OpenAPI specification
-APIFACTORY_SPEC_PATH=./spec.yml
+HTTP_SPEC_PATH=./spec.yml
+# Sets global log level
+LOG_LEVEL=info
+# Sets http log level
+HTTP_LOG_LEVEL=info
 ```

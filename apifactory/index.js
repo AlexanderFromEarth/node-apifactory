@@ -1,1 +1,1 @@
-export * from './service.js';
+export {default as http} from './http.js';
