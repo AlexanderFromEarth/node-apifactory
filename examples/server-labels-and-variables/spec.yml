@@ -4,10 +4,16 @@ info:
   description: Tasks service example
   version: 1.0.0
 servers:
-  - url: 'http://localhost'
-  - url: 'http://0.0.0.0:8000'
+  - url: 'http://localhost:{port}'
+    variables:
+      port:
+        default: '8000'
+  - url: 'http://0.0.0.0:{port}'
     x-labels:
-      app: tasks
+      type: global
+    variables:
+      port:
+        default: '8000'
 paths:
   /users/{userId}/tasks:
     parameters:

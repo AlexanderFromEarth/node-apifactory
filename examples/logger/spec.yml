@@ -1,0 +1,126 @@
+openapi: 3.1.0
+info:
+  title: tasks
+  description: Tasks service example
+  version: 1.0.0
+servers:
+  - url: 'http://localhost'
+paths:
+  /users/{userId}/tasks:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    get:
+      operationId: getTasks
+      responses:
+        200:
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tasks'
+    post:
+      operationId: createTask
+      requestBody:
+        x-name: task
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewTask'
+      responses:
+        200:
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Id'
+  /users/{userId}/tasks/{taskId}:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      operationId: getTask
+      responses:
+        200:
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+    patch:
+      operationId: updateTask
+      requestBody:
+        x-name: taskParams
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskParams'
+      responses:
+        200:
+          description: ok
+    delete:
+      operationId: deleteTask
+      responses:
+        200:
+          description: ok
+components:
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+  schemas:
+    Tasks:
+      type: array
+      items:
+        $ref: '#/components/schemas/Task'
+    Task:
+      type: object
+      required:
+        - id
+        - title
+        - description
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        title:
+          $ref: '#/components/schemas/Title'
+        description:
+          $ref: '#/components/schemas/Description'
+    TaskParams:
+      type: object
+      minProperties: 1
+      properties:
+        title:
+          $ref: '#/components/schemas/Title'
+        description:
+          $ref: '#/components/schemas/Description'
+    NewTask:
+      type: object
+      required:
+        - title
+        - description
+      properties:
+        title:
+          $ref: '#/components/schemas/Title'
+        description:
+          $ref: '#/components/schemas/Description'
+    Id:
+      type: integer
+      format: int32
+    Title:
+      type: string
+      minLength: 1
+    Description:
+      nullable: true
+      type: string
+      minLength: 1

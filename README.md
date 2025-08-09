@@ -74,9 +74,9 @@ paths:
 const tasks = new Map();
 let lastId = 0;
 
-export async function createTask(params) {
+export async function createTask({task}) {
   lastId++;
-  tasks.set(lastId, {...params.task, id: lastId});
+  tasks.set(lastId, {...task, id: lastId});
 
   return lastId;
 }
@@ -86,7 +86,7 @@ export async function createTask(params) {
 ```js
 import {http} from 'node-apifactory';
 
-const app = await http({server: {labels: {app: 'tasks'}}});
+const app = await http();
 
 await app.run();
 ```
@@ -99,10 +99,20 @@ Below listed variables and their purposes with default values:
 ```dotenv
 # Sets path to directory with service files
 SERVICES_PATH=./services
-# Sets path to root of OpenAPI specification
-HTTP_SPEC_PATH=./spec.yml
+# Sets path to directory with module files
+MODULES_PATH=./modules
 # Sets global log level
 LOG_LEVEL=info
+# Sets database connection url, prefix before _DATABASE_URL used as name of connection
+PREFIX_DATABASE_URL=
+# Sets redis connection url, prefix before _REDIS_URL used as name of connection
+PREFIX_REDIS_URL=
+# Sets path to root of OpenAPI specification
+HTTP_SPEC_PATH=./spec.yml
 # Sets http log level
 HTTP_LOG_LEVEL=info
+# Sets HTTP varible that modifies selected server url, postfix after HTTP_VARIABLE used as variable name
+HTTP_VARIABLE_POSTFIX=
+# Sets HTTP hable that used for selection server url, postfix after HTTP_LABEL used as label name
+HTTP_LABEL_POSTFIX=
 ```
