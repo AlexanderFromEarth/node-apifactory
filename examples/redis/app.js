@@ -1,7 +1,5 @@
-import {http} from '#node-apifactory';
+import service from 'src';
 
 process.env.MAIN_REDIS_URL = 'redis://localhost:6379/5';
 
-const app = await http();
-
-await app.run();
+await service();

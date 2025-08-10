@@ -1,16 +1,17 @@
 {
   "name": "node-apifactory",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Web framework for API-first development via OpenAPI specification with included validation according to OpenAPI based on fastify and @apidevtools/json-schema-ref-parser.",
   "license": "MIT",
   "author": {
     "name": "Alexander Andreev"
   },
-  "main": "apifactory/index.js",
+  "main": "src/index.js",
+  "types": "types/index.d.ts",
   "type": "module",
   "imports": {
     "#node-apifactory": {
-      "default": "./apifactory/index.js"
+      "default": "./src/index.js"
     }
   },
   "repository": {

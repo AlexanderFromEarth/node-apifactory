@@ -4,12 +4,10 @@ import process from 'node:process';
 import $RefParser from '@apidevtools/json-schema-ref-parser';
 import fastify from 'fastify';
 
-import * as service from './services.js';
-
-export default async function http() {
+export default async function http(services, settings) {
   const app = fastify({
     logger: {
-      level: process.env.HTTP_LOG_LEVEL || process.env.LOG_LEVEL || 'info',
+      level: settings.logLevel,
       timestamp: true
     },
     return503OnClosing: true,
@@ -23,27 +21,7 @@ export default async function http() {
     }
   });
 
-  const specPath = process.env.HTTP_SPEC_PATH || './spec.yml';
-  const labels = {};
-
-  for (const envVar in process.env) {
-    const envPrefix = 'HTTP_LABEL_';
-
-    if (envVar.startsWith(envPrefix)) {
-      const name = envVar
-        .slice(envPrefix.length)
-        .toLowerCase()
-        .replaceAll(/([_][a-z])/g, (group) => group
-          .toUpperCase()
-          .replace('_', ''));
-
-      labels[name] = process.env[envVar];
-    }
-  }
-
-  labels.env = process.env.NODE_ENV || 'development';
-
-  const {servers, paths} =  await $RefParser.dereference(path.join(process.cwd(), specPath));
+  const {servers, paths} =  await $RefParser.dereference(path.join(process.cwd(), settings.specPath));
   let exactServer;
   let fuzzyServer;
 
@@ -58,7 +36,7 @@ export default async function http() {
     let isSome = false;
 
     for (const varName in serverLabels) {
-      if (serverLabels[varName] === labels[varName]) {
+      if (serverLabels[varName] === settings.labels[varName]) {
         isSome = true;
       } else {
         isNotEvery = true;
@@ -78,33 +56,14 @@ export default async function http() {
   let serverUrl = server.url;
 
   if (server.variables) {
-    const vars = {};
-
-    for (const envVar in process.env) {
-      const envPrefix = 'HTTP_VARIABLE_';
-
-      if (envVar.startsWith(envPrefix)) {
-        const name = envVar
-          .slice(envPrefix.length)
-          .toLowerCase()
-          .replaceAll(/([_][a-z])/g, (group) => group
-            .toUpperCase()
-            .replace('_', ''));
-
-        vars[name] = process.env[envVar];
-      }
-    }
-
     for (const varName in server.variables) {
-      const value = vars[varName] ?? server.variables[varName].default;
+      const value = settings.variables[varName] ?? server.variables[varName].default;
 
       serverUrl = serverUrl.replace(`{${varName}}`, value);
     }
   }
 
   const {hostname: host, port, pathname: serverPath} = new URL(serverUrl);
-
-  const services = await service.load();
 
   const allowedMethods = new Set(['get', 'post', 'put', 'patch', 'delete']);
 
@@ -204,15 +163,12 @@ export default async function http() {
     }
   }
 
-  const dispose = async() => {
-    await app.close();
-  };
-
   return {
     run: async() => {
-      process.on('SIGTERM', dispose);
-      process.on('SIGINT', dispose);
       await app.listen({host, port: Number(port)});
+    },
+    dispose: async() => {
+      await app.close();
     }
   };
 }

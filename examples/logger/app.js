@@ -1,5 +1,3 @@
-import {http} from '#node-apifactory';
+import service from 'src';
 
-const app = await http();
-
-await app.run();
+await service();

@@ -2,26 +2,23 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
-import logging from './logging.js';
-import redis from './redis.js';
-import sql from './sql.js';
-
-export async function load() {
-  const modules = {};
-  const system = {
-    logger: logging(),
-    sql: sql(),
-    redis: redis()
-  };
-  const modulesPath = process.env.MODULES_PATH || './modules';
+export async function load(modulesPath, systemModules) {
   const modulesDir = path.join(process.cwd(), modulesPath);
   const hasModules = await fs.stat(modulesDir)
     .then(() => true)
     .catch(() => false);
 
   if (!hasModules) {
-    return {...system};
+    return {...systemModules};
   }
+
+  const systemModuleActions = {};
+
+  for (const name in systemModules) {
+    systemModuleActions[name] = systemModules[name].action;
+  }
+
+  const modules = {};
 
   for (const filename of await fs.readdir(modulesDir)) {
     if (!filename.endsWith('.js') && !filename.endsWith('.ts')) {
@@ -36,13 +33,13 @@ export async function load() {
 
       for (const name in module) {
         if (typeof module[name] === 'function') {
-          modules[name] = () => module[name](system);
+          modules[name] = module[name](systemModuleActions);
         }
       }
     }
   }
 
-  Object.assign(modules, system);
+  Object.assign(modules, systemModules);
 
   return modules;
 }

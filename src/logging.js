@@ -1,18 +1,19 @@
 import pino from 'pino';
 
-export default function logging() {
-  const logger = pino({
-    level: process.env.LOG_LEVEL || 'info',
-    timestamp: true
-  });
+export default function logging(level) {
+  const logger = pino({level});
 
-  return (name) => {
+  return {action: child(logger)};
+}
+
+function child(logger) {
+  return function childLogger(name) {
     const namedLogger = name ?
       logger.child({name}) :
       logger;
 
     return {
-      child: (name) => namedLogger.child({name}),
+      child: child(namedLogger),
       fatal: (msg, obj, ...args) => namedLogger.fatal(msg, obj, ...args),
       error: (msg, obj, ...args) => namedLogger.error(msg, obj, ...args),
       warn: (msg, obj, ...args) => namedLogger.warn(msg, obj, ...args),
@@ -20,5 +21,5 @@ export default function logging() {
       debug: (msg, obj, ...args) => namedLogger.debug(msg, obj, ...args),
       trace: (msg, obj, ...args) => namedLogger.trace(msg, obj, ...args)
     };
-  };
+  }
 }

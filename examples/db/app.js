@@ -1,7 +1,5 @@
-import {http} from '#node-apifactory';
+import service from 'src';
 
 process.env.MAIN_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/postgres';
 
-const app = await http();
-
-await app.run();
+await service();
