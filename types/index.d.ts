@@ -16,11 +16,11 @@ export type ModuleActions = {
 export interface Modules extends Record<string, ModuleFactory<any, any>> {
   sql: ModuleFactory<{
     query<T = unknown>(query: TemplateStringsArray, ...args: any[]): Promise<Array<T>>;
-    raw(query: string, ...args: any[]): any;
+    raw(query: TemplateStringsArray, ...args: any[]): any;
     transaction(queries: Array<any>): Promise<void>;
     transaction<T>(fn: (_: {
       query<T = unknown>(query: TemplateStringsArray, ...args: any[]): Promise<Array<T>>;
-      raw(query: string, ...args: any[]): any;
+      raw(query: TemplateStringsArray, ...args: any[]): any;
     }) => Promise<T>): Promise<T>;
   }, [string]>;
   redis: ModuleFactory<RedisClientPoolType, [string]>;
