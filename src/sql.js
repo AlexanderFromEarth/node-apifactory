@@ -53,7 +53,23 @@ export default function sql(dbs) {
         query: (query, ...args) => kysely.sql(query, ...args)
           .execute(result[name])
           .then(({rows}) => rows),
-        raw: (query, ...args) => kysely.sql(query, ...args)
+        raw: (query, ...args) => kysely.sql(query, ...args),
+        transaction: async(arg) => {
+          if (Array.isArray(arg)) {
+            await result[name].transaction(async(trx) => {
+              for (const query of arg) {
+                await query.execute(trx);
+              }
+            });
+          } else {
+            return await result[name].transaction(async(trx) => await arg({
+              query: (query, ...args) => kysely.sql(query, ...args)
+                .execute(trx)
+                .then(({rows}) => rows),
+              raw: (query, ...args) => kysely.sql(query, ...args)
+            }));
+          }
+        }
       };
     },
     dispose: async() => {

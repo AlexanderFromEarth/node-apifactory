@@ -15,21 +15,19 @@ export type ModuleActions = {
 
 export interface Modules extends Record<string, ModuleFactory<any, any>> {
   sql: ModuleFactory<{
-    query<T>(query: string, ...args: any[]): Promise<T>;
+    query<T = unknown>(query: TemplateStringsArray, ...args: any[]): Promise<Array<T>>;
     raw(query: string, ...args: any[]): any;
+    transaction(queries: Array<any>): Promise<void>;
+    transaction<T>(fn: (_: {
+      query<T = unknown>(query: TemplateStringsArray, ...args: any[]): Promise<Array<T>>;
+      raw(query: string, ...args: any[]): any;
+    }) => Promise<T>): Promise<T>;
   }, [string]>;
   redis: ModuleFactory<RedisClientPoolType, [string]>;
   logger: ModuleFactory<Logger, [string]>;
 }
 
-export type SystemModuleActions = {
-  sql(name: string): {
-    query<T>(query: string, ...args: any[]): Promise<T>;
-    raw(query: string, ...args: any[]): any;
-  };
-  redis(name: string): RedisClientPoolType;
-  logger(name?: string): Logger;
-}
+export type SystemModuleActions = Pick<ModuleActions, 'sql' | 'redis' | 'logger'>;
 
 interface Logger {
   child(name?: string): Logger;
