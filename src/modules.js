@@ -85,8 +85,7 @@ export async function load(modulesPath) {
 
   const madeModules = {};
 
-  for (const moduleName in modules) {
-    const module = modules[moduleName];
+  for (const module of sorted) {
     const requiredModuleActions = {};
 
     if (module.require) {
@@ -95,7 +94,7 @@ export async function load(modulesPath) {
       }
     }
 
-    madeModules[moduleName] = module.make(requiredModuleActions);
+    madeModules[module.name] = module.make(requiredModuleActions);
   }
 
   return madeModules;

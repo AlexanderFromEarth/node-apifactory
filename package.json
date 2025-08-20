@@ -1,6 +1,6 @@
 {
   "name": "node-apifactory",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Web framework for API-first development via OpenAPI specification with included validation according to OpenAPI based on fastify and @apidevtools/json-schema-ref-parser.",
   "license": "MIT",
   "author": {
