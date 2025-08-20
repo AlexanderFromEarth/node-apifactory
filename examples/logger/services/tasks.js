@@ -1,27 +1,22 @@
 const tasks = new Map();
-let lastId = 0;
 
-export async function getTasks(_, {logger}) {
-  logger().info('Getting tasks');
-
+export async function getTasks() {
   return Array.from(tasks.values());
 }
 
-export async function createTask({task}, {logger}) {
-  logger().info('Creating new task');
-  lastId++;
-  tasks.set(lastId, {...task, id: lastId});
+export async function createTask({task}, {ids}) {
+  const id = ids();
 
-  return lastId;
+  tasks.set(id, {...task, id});
+
+  return id;
 }
 
-export async function getTask({taskId}, {logger}) {
-  logger().info('Getting task');
+export async function getTask({taskId}) {
   return tasks.get(taskId);
 }
 
-export async function updateTask({taskId, taskParams}, {logger}) {
-  logger().info('Updating task');
+export async function updateTask({taskId, taskParams}) {
   const task = tasks.get(taskId);
 
   if ('title' in taskParams) {
@@ -32,7 +27,6 @@ export async function updateTask({taskId, taskParams}, {logger}) {
   }
 }
 
-export async function deleteTask({taskId}, {logger}) {
-  logger().info('Deleting task');
+export async function deleteTask({taskId}) {
   tasks.delete(taskId);
 }

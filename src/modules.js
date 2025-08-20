@@ -6,6 +6,7 @@ import * as env from './env.js';
 import * as logger from './logging.js';
 import * as redis from './redis.js';
 import * as sql from './sql.js';
+import * as ids from './ids.js';
 
 export async function load(modulesPath) {
   const modulesDir = path.join(process.cwd(), modulesPath);
@@ -17,7 +18,8 @@ export async function load(modulesPath) {
     [env.name]: env,
     [logger.name]: logger,
     [redis.name]: redis,
-    [sql.name]: sql
+    [sql.name]: sql,
+    [ids.name]: ids
   };
 
   if (hasModules) {
