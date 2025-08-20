@@ -1,10 +1,14 @@
 import pino from 'pino';
 
-export default function logging(level) {
-  const logger = pino({level});
+export function make({env}) {
+  const logger = pino({level: env().get('logLevel', 'info')});
 
   return {action: child(logger)};
 }
+
+export const name = 'logger';
+
+export const require = ['env'];
 
 function child(logger) {
   return function childLogger(name) {

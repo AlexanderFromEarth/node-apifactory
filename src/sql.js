@@ -3,7 +3,8 @@ import pg from 'pg';
 import mysql from 'mysql2';
 import sqlite from 'better-sqlite3';
 
-export default function sql(dbs) {
+export function make({env}) {
+  const dbs = env().getByPostfix('databaseUrl');
   const result = {};
 
   for (const name in dbs) {
@@ -79,3 +80,7 @@ export default function sql(dbs) {
     }
   };
 }
+
+export const name = 'sql';
+
+export const require = ['env'];

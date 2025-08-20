@@ -1,6 +1,7 @@
 import {createClientPool} from 'redis';
 
-export default function redis(dbs) {
+export function make({env}) {
+  const dbs = env().getByPostfix('redisUrl');
   const result = {};
 
   for (const name in dbs) {
@@ -23,3 +24,7 @@ export default function redis(dbs) {
     }
   };
 }
+
+export const name = 'redis';
+
+export const require = ['env'];

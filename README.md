@@ -67,28 +67,62 @@ paths:
                     format: int32
 ```
 
+### ./modules/tasksRepository.js
+```js
+//name of module ignored totally
+
+// required: this function builds module
+export function make({logger}) {
+  const map = new Map();
+  let lastId = 0;
+
+  return {
+    // required: this will be used as module function passed to service
+    action: () => ({
+      nextId() {
+        return ++lastId;
+      },
+      set(id, task) {
+        map.set(id, task);
+      }
+    }),
+    // optional: there can be some clean effects
+    dispose: () => {
+      map.clear();
+    }
+  };
+}
+
+// required: this would be used as name of module
+export const name = 'tasksRepository';
+
+// optional: this hints for other required modules
+export const require = ['logger'];
+```
+
 ### ./services/tasks.js
 ```js
 // name of module ignored totally
 
-const tasks = new Map();
-let lastId = 0;
+// first arg: passed parameters
+// second arg: modules
+// third arg: meta info
+export async function createTask({task}, {tasksRepository}, {links}) {
+  const id = tasksRepository.nextId();
 
-export async function createTask({task}) {
-  lastId++;
-  tasks.set(lastId, {...task, id: lastId});
+  tasksRepository.set(id, {...task, id});
 
-  return lastId;
+  links.self = `/tasks/${id}`;
+
+  return id;
 }
 ```
 
 ### ./app.js
 ```js
-import {http} from 'node-apifactory';
+import app from 'node-apifactory';
 
-const app = await http();
-
-await app.run();
+await app();
 ```
 
 ## Configuration

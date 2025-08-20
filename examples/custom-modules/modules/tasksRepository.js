@@ -1,4 +1,4 @@
-export function tasksRepository({sql, logger}) {
+export function make({sql, logger}) {
   return {
     action: () => ({
       async read() {
@@ -64,3 +64,7 @@ export function tasksRepository({sql, logger}) {
     })
   };
 }
+
+export const name = 'tasksRepository';
+
+export const dependencies = ['sql', 'logger'];

@@ -2,22 +2,12 @@ import process from 'node:process';
 import fs from 'node:fs/promises';
 
 import {default as http} from './http.js';
-import {default as logging} from './logging.js';
-import {default as redis} from './redis.js';
-import {default as sql} from './sql.js';
 import * as env from './env.js';
 import * as modules from './modules.js';
 import * as services from './services.js';
 
 export default async function app() {
-  const redises = env.getByPostfix('redisUrl');
-  const sqls = env.getByPostfix('databaseUrl');
-  const systemModules = {
-    redis: redis(redises),
-    sql: sql(sqls),
-    logger: logging(env.get('logLevel', 'info'))
-  };
-  const appModules = await modules.load(env.get('modulesPath', './modules'), systemModules);
+  const appModules = await modules.load(env.get('modulesPath', './modules'));
   const appServices = await services.load(env.get('servicesPath', './services'), appModules);
   const apps = {};
   const httpSpecPath = env.get('httpSpecPath', './spec.yml');

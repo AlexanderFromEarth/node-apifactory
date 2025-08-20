@@ -1,3 +1,3 @@
-import service from 'src';
+import app from '#node-apifactory';
 
-await service();
+await app();

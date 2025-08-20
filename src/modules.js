@@ -2,44 +2,101 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
-export async function load(modulesPath, systemModules) {
+import * as env from './env.js';
+import * as logger from './logging.js';
+import * as redis from './redis.js';
+import * as sql from './sql.js';
+
+export async function load(modulesPath) {
   const modulesDir = path.join(process.cwd(), modulesPath);
   const hasModules = await fs.stat(modulesDir)
     .then(() => true)
     .catch(() => false);
 
-  if (!hasModules) {
-    return {...systemModules};
-  }
+  const modules = {
+    [env.name]: env,
+    [logger.name]: logger,
+    [redis.name]: redis,
+    [sql.name]: sql
+  };
 
-  const systemModuleActions = {};
+  if (hasModules) {
+    for (const filename of await fs.readdir(modulesDir)) {
+      if (!filename.endsWith('.js') && !filename.endsWith('.ts')) {
+        continue;
+      }
 
-  for (const name in systemModules) {
-    systemModuleActions[name] = systemModules[name].action;
-  }
+      const filePath = path.join(modulesDir, filename);
+      const stat = await fs.stat(filePath);
 
-  const modules = {};
+      if (stat.isFile()) {
+        const module = await import(filePath);
 
-  for (const filename of await fs.readdir(modulesDir)) {
-    if (!filename.endsWith('.js') && !filename.endsWith('.ts')) {
-      continue;
-    }
-
-    const filePath = path.join(modulesDir, filename);
-    const stat = await fs.stat(filePath);
-
-    if (stat.isFile()) {
-      const module = await import(filePath);
-
-      for (const name in module) {
-        if (typeof module[name] === 'function') {
-          modules[name] = module[name](systemModuleActions);
+        if (
+          module.name &&
+          typeof module.name === 'string' &&
+          module.make &&
+          typeof module.make === 'function'
+        ) {
+          modules[module.name] = module;
         }
       }
     }
   }
 
-  Object.assign(modules, systemModules);
+  const visited = new Set();
+  const ancestors = new Set();
+  const stack = [];
+  const sorted = [];
+  let top
 
-  return modules;
+  for (const moduleName in modules) {
+    const module = modules[moduleName];
+
+    stack.push(module)
+
+    while ((top = stack.at(-1)) !== undefined) {
+      const hasNotVisited = top.require?.length && top.require
+        .some((moduleName) => !visited.has(modules[moduleName]));
+
+      if (visited.has(top)) {
+        stack.pop();
+        ancestors.delete(top);
+      } else if (ancestors.has(top) && stack.indexOf(top) !== stack.length - 1) {
+        throw new Error('circular dependency detected');
+      } else if (hasNotVisited) {
+        ancestors.add(top);
+
+        for (const moduleName of top.require) {
+          if (!modules[moduleName]) {
+            throw new Error(`not found module "${moduleName}"`);
+          }
+
+          stack.push(modules[moduleName]);
+        }
+      } else {
+        visited.add(top);
+        stack.pop();
+        ancestors.delete(top);
+        sorted.push(top);
+      }
+    }
+  }
+
+  const madeModules = {};
+
+  for (const moduleName in modules) {
+    const module = modules[moduleName];
+    const requiredModuleActions = {};
+
+    if (module.require) {
+      for (const moduleName of module.require) {
+        requiredModuleActions[moduleName] = madeModules[moduleName].action;
+      }
+    }
+
+    madeModules[moduleName] = module.make(requiredModuleActions);
+  }
+
+  return madeModules;
 }

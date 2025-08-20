@@ -1,7 +1,7 @@
 import {type LogFn} from 'pino';
 import {type RedisClientPoolType} from 'redis';
 
-export default function service(): Promise<void>;
+export default function app(): Promise<void>;
 
 export type Service<T, U> = (
   params: T,
@@ -14,6 +14,12 @@ export type ModuleActions = {
 };
 
 export interface Modules extends Record<string, ModuleFactory<any, any>> {
+  env: ModuleFactory<{
+    get(key: string): string | undefined;
+    get(key: string, defaultValue: string): string;
+    getByPrefix(key: string): Record<string, string>;
+    getByPostfix(key: string): Record<string, string>;
+  }, []>
   sql: ModuleFactory<{
     query<T = unknown>(query: TemplateStringsArray, ...args: any[]): Promise<Array<T>>;
     raw(query: TemplateStringsArray, ...args: any[]): any;
@@ -26,8 +32,6 @@ export interface Modules extends Record<string, ModuleFactory<any, any>> {
   redis: ModuleFactory<RedisClientPoolType, [string]>;
   logger: ModuleFactory<Logger, [string]>;
 }
-
-export type SystemModuleActions = Pick<ModuleActions, 'sql' | 'redis' | 'logger'>;
 
 interface Logger {
   child(name?: string): Logger;

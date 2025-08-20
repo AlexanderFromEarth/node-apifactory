@@ -1,5 +1,11 @@
 import process from 'node:process';
 
+export function make() {
+  return {action: () => ({get, getByPrefix, getByPostfix})};
+}
+
+export const name = 'env';
+
 export function get(key, defaultValue = null) {
   return process.env[toEnvKey(key)] ?? defaultValue;
 }
