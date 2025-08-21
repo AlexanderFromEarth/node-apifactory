@@ -5,9 +5,17 @@ export default function app(): Promise<void>;
 
 export type Service<T, U> = (
   params: T,
+  result: Result<U>,
   modules: ModuleActions,
   meta: {links: Record<string, string>}
-) => U | Promise<U>;
+) => Promisified<U | {success: true, payload: T} | {success: false, error: Error}>;
+
+type Promisified<T> = T | PromiseLike<T>;
+
+interface Error {
+  code: string;
+  message: string;
+}
 
 export type ModuleActions = {
   [ModuleName in keyof Modules]: ReturnType<Modules[ModuleName]>['action'];
@@ -32,15 +40,10 @@ export interface Modules extends Record<string, ModuleFactory<any, any>> {
   redis: ModuleFactory<RedisClientPoolType, [string]>;
   logger: ModuleFactory<Logger, [string]>;
   ids: ModuleFactory<{
-    'new'(): {
-      valueOf(): string;
-      toJSON(): string;
-    };
-    fromJSON(id: string): {
-      valueOf(): string;
-      toJSON(): string;
-    };
-  }, []>;
+    valueOf(): string;
+    toString(): string;
+    toJSON(): string;
+  }, [string | {value: string} | never]>;
 }
 
 interface Logger {
@@ -54,7 +57,18 @@ interface Logger {
   trace: LogFn;
 }
 
-export type ModuleFactory<T, Args extends Array<any>> = () => Module<T, Args>
+export interface Result<T> {
+  success(payload: T): {success: true, payload: T};
+  invalid(): {success: false, error: Error};
+  noAccess(): {success: false, error: Error};
+  notExists(entityType: string, entityId: string): {success: false, error: Error};
+  alreadyExists(entityType: string, entityId: string): {success: false, error: Error};
+  deleted(entityType: string, entityId: string): {success: false, error: Error};
+  error(message: string): {success: false, error: Error};
+}
+
+export type ModuleFactory<T, Args extends Array<any>, Deps extends keyof Modules = never> =
+  (modules: Pick<Modules, Deps>) => Module<T, Args>;
 
 export interface Module<T, Args extends Array<any>> {
   action(...args: Args): T;

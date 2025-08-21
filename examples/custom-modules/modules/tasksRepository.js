@@ -67,4 +67,4 @@ export function make({sql, logger}) {
 
 export const name = 'tasksRepository';
 
-export const dependencies = ['sql', 'logger'];
+export const require = ['sql', 'logger'];

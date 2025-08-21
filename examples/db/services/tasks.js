@@ -1,11 +1,11 @@
-export async function getTasks(_, {sql}) {
+export async function getTasks(_, __, {sql}) {
   return await sql('main').query`
       select *
       from tasks
   `;
 }
 
-export async function createTask({task: {title, description}}, {sql}) {
+export async function createTask({task: {title, description}}, _, {sql}) {
   const [{id}] = await sql('main').query`
       insert into tasks (title, description)
       values (${title}, ${description ?? null}) returning (id)
@@ -14,7 +14,7 @@ export async function createTask({task: {title, description}}, {sql}) {
   return id;
 }
 
-export async function getTask({taskId}, {sql}) {
+export async function getTask({taskId}, _, {sql}) {
   const [task] = await sql('main').query`
       select *
       from tasks
@@ -24,7 +24,7 @@ export async function getTask({taskId}, {sql}) {
   return task;
 }
 
-export async function updateTask({taskId, taskParams}, {sql}) {
+export async function updateTask({taskId, taskParams}, _, {sql}) {
   const title = 'title' in taskParams ?
     taskParams.title :
     sql('main').raw('title');
@@ -40,7 +40,7 @@ export async function updateTask({taskId, taskParams}, {sql}) {
   `;
 }
 
-export async function deleteTask({taskId}, {sql}) {
+export async function deleteTask({taskId}, _, {sql}) {
   await sql('main').query`
       delete
       from tasks

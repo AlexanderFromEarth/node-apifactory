@@ -115,7 +115,8 @@ components:
         description:
           $ref: '#/components/schemas/Description'
     Id:
-      type: string
+      type: integer
+      format: int32
     Title:
       type: string
       minLength: 1

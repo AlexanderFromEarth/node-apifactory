@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
+import * as result from './result.js';
+
 export async function load(servicesPath, modules) {
   const services = {};
   const servicesDir = path.join(process.cwd(), servicesPath);
@@ -27,9 +29,22 @@ export async function load(servicesPath, modules) {
               moduleActions[name] = modules[name].action;
             }
 
-            const result = await module[name](params, moduleActions, meta);
+            try {
+              const payload = await module[name](params, result, moduleActions, meta);
 
-            return {result, meta};
+              return {
+                result: typeof payload === 'object' && payload !== null && 'success' in payload ?
+                  payload :
+                  {success: true, payload},
+                meta
+              };
+            } catch(err) {
+              if (typeof err === 'object' && err !== null && 'success' in err) {
+                return {result: err, meta};
+              }
+
+              throw err;
+            }
           };
         }
       }

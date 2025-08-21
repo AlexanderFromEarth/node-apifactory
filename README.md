@@ -74,15 +74,12 @@ paths:
 // required: this function builds module
 export function make({logger}) {
   const map = new Map();
-  let lastId = 0;
 
   return {
     // required: this will be used as module function passed to service
     action: () => ({
-      nextId() {
-        return ++lastId;
-      },
       set(id, task) {
+        logger().debug('setting task');
         map.set(id, task);
       }
     }),
@@ -107,14 +104,14 @@ export const require = ['logger'];
 // first arg: passed parameters
 // second arg: modules
 // third arg: meta info
-export async function createTask({task}, {tasksRepository}, {links}) {
-  const id = tasksRepository.nextId();
+export async function createTask({task}, _, {ids, tasksRepository}, {links}) {
+  const id = ids();
 
-  tasksRepository.set(id, {...task, id});
+  tasksRepository.set(id.valueOf(), {...task, id: id.valueOf()});
 
-  links.self = `/tasks/${id}`;
+  links.self = `/tasks/${id.toJSON()}`;
 
-  return id;
+  return id.toJSON();
 }
 ```
 

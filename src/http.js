@@ -66,6 +66,20 @@ export default async function http(services, settings) {
   const {hostname: host, port, pathname: serverPath} = new URL(serverUrl);
 
   const allowedMethods = new Set(['get', 'post', 'put', 'patch', 'delete']);
+  const errorSchema = {
+    type: 'object',
+    required: ['code', 'message'],
+    properties: {
+      code: {
+        type: 'string',
+        enum: ['invalid', 'noAccess', 'notExists', 'alreadyExists', 'deleted', 'error']
+      },
+      message: {
+        type: 'string',
+        minLength: 1
+      }
+    }
+  };
 
   for (const path in paths) {
     const pathObject = paths[path];
@@ -74,7 +88,16 @@ export default async function http(services, settings) {
       if (method in pathObject) {
         const methodObject = pathObject[method];
         const bodyName = methodObject.requestBody?.['x-name'] ?? 'body';
-        const schema = {};
+        const schema = {
+          response: {
+            400: errorSchema,
+            403: errorSchema,
+            404: errorSchema,
+            409: errorSchema,
+            410: errorSchema,
+            422: errorSchema
+          }
+        };
 
         if (methodObject.requestBody?.content?.['application/json']?.schema) {
           schema.body = methodObject.requestBody?.content['application/json'].schema;
@@ -142,7 +165,7 @@ export default async function http(services, settings) {
           path: `${serverPath}/${operationPath}`.replaceAll(/\/{2,}/g, '/'),
           schema,
           async handler(req, reply) {
-            const {result: payload, meta} = await operation({
+            const {result, meta} = await operation({
               ...req.params,
               ...req.query,
               ...req.body && {[bodyName]: req.body}
@@ -156,7 +179,30 @@ export default async function http(services, settings) {
 
             reply.header('link', linkEntries.join(', '));
 
-            return payload;
+            if (result.success) {
+              return result.payload;
+            }
+
+            switch (result.code) {
+              case 'invalid': {
+                return reply.code(400).send(result.error);
+              }
+              case 'noAccess': {
+                return reply.code(403).send(result.error);
+              }
+              case 'notExists': {
+                return reply.code(404).send(result.error);
+              }
+              case 'alreadyExists': {
+                return reply.code(409).send(result.error);
+              }
+              case 'deleted': {
+                return reply.code(410).send(result.error);
+              }
+              default: {
+                return reply.code(422).send(result.error);
+              }
+            }
           }
         });
       }
@@ -165,7 +211,7 @@ export default async function http(services, settings) {
 
   return {
     run: async() => {
-      await app.listen({host, port: Number(port)});
+      await app.listen({host, port: Number(port || '8080')});
     },
     dispose: async() => {
       await app.close();

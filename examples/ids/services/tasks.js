@@ -1,28 +1,26 @@
 const tasks = new Map();
-let lastId = 0;
 
-export async function getTasks(_, {logger}) {
-  logger().info('Getting tasks');
-
-  return Array.from(tasks.values());
+export async function getTasks(_, __, {ids}) {
+  return Array.from(tasks.values(), ({id, ...task}) => ({
+    ...task,
+    id: ids({value: id}).toJSON()
+  }));
 }
 
-export async function createTask({task}, {logger}) {
-  logger().info('Creating new task');
-  lastId++;
-  tasks.set(lastId, {...task, id: lastId});
+export async function createTask({task}, _, {ids}) {
+  const id = ids();
 
-  return lastId;
+  tasks.set(id.valueOf(), {...task, id: id.valueOf()});
+
+  return id.toJSON();
 }
 
-export async function getTask({taskId}, {logger}) {
-  logger().info('Getting task');
-  return tasks.get(taskId);
+export async function getTask({taskId}, _, {ids}) {
+  return tasks.get(ids(taskId).valueOf());
 }
 
-export async function updateTask({taskId, taskParams}, {logger}) {
-  logger().info('Updating task');
-  const task = tasks.get(taskId);
+export async function updateTask({taskId, taskParams}, _, {ids}) {
+  const task = tasks.get(ids(taskId).valueOf());
 
   if ('title' in taskParams) {
     task.title = taskParams.title;
@@ -32,7 +30,6 @@ export async function updateTask({taskId, taskParams}, {logger}) {
   }
 }
 
-export async function deleteTask({taskId}, {logger}) {
-  logger().info('Deleting task');
-  tasks.delete(taskId);
+export async function deleteTask({taskId}, _, {ids}) {
+  tasks.delete(ids(taskId).valueOf());
 }
