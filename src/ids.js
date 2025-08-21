@@ -20,7 +20,7 @@ export function make({env}) {
 
   return {
     action: () => ({
-      generate: () => {
+      new: () => {
         if (!cache || position + idLength > cacheLength) {
           crypto.randomFillSync(cache);
           position = 0;
@@ -30,10 +30,34 @@ export function make({env}) {
           buffer[i] = alphabet[buffer[position + idLength]];
         }
 
-        return buffer.toString('ascii') + checksum(buffer);
+        const value = buffer.toString('ascii');
+        const checksum = calculateChecksum(value);
+
+        return {
+          valueOf() {
+            return value;
+          },
+          toJSON() {
+            return value + checksum;
+          }
+        };
       },
-      validate: (id) => {
-        return checksum(Buffer.from(id.substring(0, id.length - 1), 'ascii')) === id[id.length - 1];
+      fromJSON: (id) => {
+        const value = id.substring(0, id.length - 1);
+        const checksum = id[id.length - 1];
+
+        if (calculateChecksum(Buffer.from(value, 'ascii')) !== checksum) {
+          throw new Error('not valid id');
+        }
+
+        return {
+          valueOf() {
+            return value;
+          },
+          toJSON() {
+            return value + checksum;
+          }
+        };
       }
     }),
   };
@@ -43,7 +67,7 @@ export const name = 'ids';
 
 export const require = ['env'];
 
-function checksum(buffer) {
+function calculateChecksum(buffer) {
   const checksum = Number(BigInt(`0x${buffer.toString('hex')}`) % BigInt(checksumChars.length));
 
   return checksumChars[Math.abs(checksum)];
