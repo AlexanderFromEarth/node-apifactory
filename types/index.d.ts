@@ -31,6 +31,7 @@ export interface Modules extends Record<string, ModuleFactory<any, any>> {
   }, [string]>;
   redis: ModuleFactory<RedisClientPoolType, [string]>;
   logger: ModuleFactory<Logger, [string]>;
+  ids: ModuleFactory<{next(): string, validate(id: string): boolean}, []>;
 }
 
 interface Logger {
