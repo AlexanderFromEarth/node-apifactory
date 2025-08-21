@@ -27,7 +27,7 @@ export async function load(servicesPath, modules) {
               moduleActions[name] = modules[name].action;
             }
 
-            const result = await module[name](params, moduleActions, extraMeta);
+            const result = await module[name](params, moduleActions, meta);
 
             return {result, meta};
           };
