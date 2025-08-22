@@ -43,7 +43,7 @@ export interface Modules extends Record<string, ModuleFactory<any, any>> {
     valueOf(): string;
     toString(): string;
     toJSON(): string;
-  }, [string | {value: string} | never]>;
+  }, [string] | [{value: string}] | []>;
 }
 
 interface Logger {
