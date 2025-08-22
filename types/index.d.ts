@@ -68,7 +68,7 @@ export interface Result<T> {
 }
 
 export type ModuleFactory<T, Args extends Array<any>, Deps extends keyof Modules = never> =
-  (modules: Pick<Modules, Deps>) => Module<T, Args>;
+  (modules: Pick<ModuleActions, Deps>) => Module<T, Args>;
 
 export interface Module<T, Args extends Array<any>> {
   action(...args: Args): T;
