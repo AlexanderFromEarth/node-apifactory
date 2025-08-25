@@ -5,10 +5,10 @@ export default function app(): Promise<void>;
 
 export type Service<T, U> = (
   params: T,
-  result: Result<U>,
+  result: Result,
   modules: ModuleActions,
   meta: {links: Record<string, string>}
-) => Promisified<U | {success: true, payload: T} | {success: false, error: Error}>;
+) => Promisified<U | ReturnType<Result[keyof Result]>>;
 
 type Promisified<T> = T | PromiseLike<T>;
 
@@ -57,8 +57,8 @@ interface Logger {
   trace: LogFn;
 }
 
-export interface Result<T> {
-  success(payload: T): {success: true, payload: T};
+export interface Result {
+  success<T>(payload: T): {success: true, payload: T};
   invalid(): {success: false, error: Error};
   noAccess(): {success: false, error: Error};
   notExists(entityType: string, entityId: string): {success: false, error: Error};
