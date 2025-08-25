@@ -165,6 +165,10 @@ export default async function http(services, settings) {
           path: `${serverPath}/${operationPath}`.replaceAll(/\/{2,}/g, '/'),
           schema,
           async handler(req, reply) {
+            if (!operation) {
+              return reply.code(404).send();
+            }
+
             const {result, meta} = await operation({
               ...req.params,
               ...req.query,
