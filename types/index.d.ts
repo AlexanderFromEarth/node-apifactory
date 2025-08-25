@@ -6,7 +6,7 @@ export default function app(): Promise<void>;
 export type Service<T, U> = (
   params: T,
   result: Result,
-  modules: ModuleActions,
+  modules: Modules,
   meta: {links: Record<string, string>}
 ) => Promisified<U | ReturnType<Result[keyof Result]>>;
 
@@ -17,18 +17,14 @@ interface Error {
   message: string;
 }
 
-export type ModuleActions = {
-  [ModuleName in keyof Modules]: ReturnType<Modules[ModuleName]>['action'];
-};
-
-export interface Modules extends Record<string, ModuleFactory<any, any>> {
-  env: ModuleFactory<{
+export interface Modules extends Record<string, (...args: any[]) => any> {
+  env: () => {
     get(key: string): string | undefined;
     get(key: string, defaultValue: string): string;
     getByPrefix(key: string): Record<string, string>;
     getByPostfix(key: string): Record<string, string>;
-  }, []>
-  sql: ModuleFactory<{
+  };
+  sql: (name: string) => {
     query<T = unknown>(query: TemplateStringsArray, ...args: any[]): Promise<Array<T>>;
     raw(query: TemplateStringsArray, ...args: any[]): any;
     transaction(queries: Array<any>): Promise<void>;
@@ -36,15 +32,33 @@ export interface Modules extends Record<string, ModuleFactory<any, any>> {
       query<T = unknown>(query: TemplateStringsArray, ...args: any[]): Promise<Array<T>>;
       raw(query: TemplateStringsArray, ...args: any[]): any;
     }) => Promise<T>): Promise<T>;
-  }, [string]>;
-  redis: ModuleFactory<RedisClientPoolType, [string]>;
-  logger: ModuleFactory<Logger, [string]>;
-  ids: ModuleFactory<{
-    valueOf(): string;
-    toString(): string;
-    toJSON(): string;
-  }, [string] | [{value: string}] | []>;
+  };
+  redis: (name: string) => RedisClientPoolType;
+  logger: (name: string) => Logger;
+  ids: {
+    (): {
+      valueOf(): string;
+      toString(): string;
+      toJSON(): string;
+    };
+    (id: string): {
+      valueOf(): string;
+      toString(): string;
+      toJSON(): string;
+    };
+    (id: {value: string}): {
+      valueOf(): string;
+      toString(): string;
+      toJSON(): string;
+    };
+  }
 }
+
+export type ModuleFactory<Key extends keyof Modules, Deps extends keyof Modules = never> =
+  (modules: Pick<Modules, Deps>, result: Result) => {
+    action: Modules[Key];
+    dispose?: () => void | Promise<void>;
+  };
 
 interface Logger {
   child(name?: string): Logger;
@@ -55,15 +69,6 @@ interface Logger {
   info: LogFn;
   debug: LogFn;
   trace: LogFn;
-}
-
-export type ModuleFactory<T, Args extends Array<any>, Deps extends keyof Modules = never> =
-  (modules: Pick<ModuleActions, Deps>, result: Result) => Module<T, Args>;
-
-export interface Module<T, Args extends Array<any>> {
-  action(...args: Args): T;
-
-  dispose?(): Promise<void>;
 }
 
 export interface Result {
