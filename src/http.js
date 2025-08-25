@@ -183,7 +183,7 @@ export default async function http(services, settings) {
               return result.payload;
             }
 
-            switch (result.code) {
+            switch (result.error?.code) {
               case 'invalid': {
                 return reply.code(400).send(result.error);
               }
