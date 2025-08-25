@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
+import * as result from './result.js';
 import * as env from './env.js';
 import * as logger from './logging.js';
 import * as redis from './redis.js';
@@ -96,7 +97,7 @@ export async function load(modulesPath) {
       }
     }
 
-    madeModules[module.name] = module.make(requiredModuleActions);
+    madeModules[module.name] = module.make(requiredModuleActions, result);
   }
 
   return madeModules;

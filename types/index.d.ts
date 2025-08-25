@@ -57,6 +57,15 @@ interface Logger {
   trace: LogFn;
 }
 
+export type ModuleFactory<T, Args extends Array<any>, Deps extends keyof Modules = never> =
+  (modules: Pick<ModuleActions, Deps>, result: Result) => Module<T, Args>;
+
+export interface Module<T, Args extends Array<any>> {
+  action(...args: Args): T;
+
+  dispose?(): Promise<void>;
+}
+
 export interface Result {
   success<T>(payload: T): {success: true, payload: T};
   invalid(): {success: false, error: Error};
@@ -65,13 +74,4 @@ export interface Result {
   alreadyExists(entityType: string, entityId: string): {success: false, error: Error};
   deleted(entityType: string, entityId: string): {success: false, error: Error};
   error(message: string): {success: false, error: Error};
-}
-
-export type ModuleFactory<T, Args extends Array<any>, Deps extends keyof Modules = never> =
-  (modules: Pick<ModuleActions, Deps>) => Module<T, Args>;
-
-export interface Module<T, Args extends Array<any>> {
-  action(...args: Args): T;
-
-  dispose?(): Promise<void>;
 }
