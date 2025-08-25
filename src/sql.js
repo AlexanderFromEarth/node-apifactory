@@ -57,13 +57,13 @@ export function make({env}) {
         raw: (query, ...args) => kysely.sql(query, ...args),
         transaction: async(arg) => {
           if (Array.isArray(arg)) {
-            await result[name].transaction(async(trx) => {
+            await result[name].transaction().execute(async(trx) => {
               for (const query of arg) {
                 await query.execute(trx);
               }
             });
           } else {
-            return await result[name].transaction(async(trx) => await arg({
+            return await result[name].transaction().execute(async(trx) => await arg({
               query: (query, ...args) => kysely.sql(query, ...args)
                 .execute(trx)
                 .then(({rows}) => rows),
