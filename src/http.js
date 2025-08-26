@@ -166,7 +166,7 @@ export default async function http(services, settings) {
           schema,
           async handler(req, reply) {
             if (!operation) {
-              return reply.code(404).send();
+              return reply.code(405).send();
             }
 
             const {result, meta} = await operation({
