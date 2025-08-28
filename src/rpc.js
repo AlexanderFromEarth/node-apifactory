@@ -3,7 +3,6 @@ import process from 'node:process';
 
 import $RefParser from '@apidevtools/json-schema-ref-parser';
 import fastify from 'fastify';
-import Ajv from 'ajv/dist/2020.js';
 
 export async function receiver(services, settings) {
   const jsonrpc = '2.0';
@@ -15,16 +14,11 @@ export async function receiver(services, settings) {
     return503OnClosing: true,
     ignoreTrailingSlash: true
   });
-  const ajvOptions = {
-    removeAdditional: true,
-    coerceTypes: true,
-    useDefaults: true
-  };
   const schemaCompilers = {
-    body: new Ajv(ajvOptions),
-    params: new Ajv(ajvOptions),
-    querystring: new Ajv(ajvOptions),
-    headers: new Ajv(ajvOptions),
+    body: settings.ajv,
+    params: settings.ajv,
+    querystring: settings.ajv,
+    headers: settings.ajv
   };
 
   app.setValidatorCompiler((req) => {

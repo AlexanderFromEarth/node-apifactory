@@ -4,8 +4,7 @@ import process from 'node:process';
 
 import * as result from './result.js';
 
-export async function load(servicesPath, modules) {
-  const services = {};
+export async function load(servicesPath, modules, services) {
   const servicesDir = path.join(process.cwd(), servicesPath);
 
   for (const filename of await fs.readdir(servicesDir)) {

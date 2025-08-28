@@ -25,13 +25,13 @@ servers:
     x-labels:
       app: tasks
 methods:
+  # should correlate with method in services directory
   - name: createTask
     params:
       - name: userId
         required: true
         schema:
           type: integer
-          format: int32
       - name: task
         required: true
         schema:
@@ -54,7 +54,6 @@ methods:
         properties:
           id:
             type: integer
-            format: int32
 ```
 
 ### ./openapi.yml
@@ -77,9 +76,8 @@ paths:
         required: true
         schema:
           type: integer
-          format: int32
     post:
-      # should correlate with method in controllers directory
+      # should correlate with method in services directory
       operationId: createTask
       requestBody:
         x-name: task
@@ -109,6 +107,54 @@ paths:
                   id:
                     type: integer
                     format: int32
+```
+
+### ./asyncapi.yml
+```yaml
+asyncapi: 3.0.0
+info:
+  title: Title
+  description: Title
+  version: 1.0.0
+servers:
+  redis-local:
+    host: localhost
+    pathname: /5
+    protocol: redis
+    x-labels:
+      app: tasks
+defaultContentType: application/json
+channels:
+  taskCreated:
+    address: tasks.created
+    messages:
+      taskCreated:
+        payload:
+          type: object
+          required:
+            - userId
+            - task
+          properties:
+            userId:
+              type: integer
+            task:
+              type: object
+              required:
+                - title
+                - descr
+              properties:
+                title:
+                  type: string
+                descr:
+                  type: string
+operations:
+  # should correlate with method in services directory
+  createTask:
+    action: receive
+    channel:
+      $ref: '#/channels/taskCreated'
+    messages:
+      - $ref: '#/channels/taskCreated/messages/taskCreated'
 ```
 
 ### ./modules/tasksRepository.js
@@ -184,7 +230,7 @@ PREFIX_DATABASE_URL=
 PREFIX_REDIS_URL=
 # Sets path to root of OpenAPI specification
 HTTP_SPEC_PATH=./openapi.yml
-# Sets http log level
+# Sets HTTP log level
 HTTP_LOG_LEVEL=info
 # Sets HTTP varible that modifies selected server url, postfix after HTTP_VARIABLE used as variable name
 HTTP_VARIABLE_POSTFIX=
@@ -192,10 +238,18 @@ HTTP_VARIABLE_POSTFIX=
 HTTP_LABEL_POSTFIX=
 # Sets path to root of OpenRPC specification
 RPC_SPEC_PATH=./openrpc.yml
-# Sets rpc log level
+# Sets RPC log level
 RPC_LOG_LEVEL=info
 # Sets RPC varible that modifies selected server url, postfix after RPC_VARIABLE used as variable name
 RPC_VARIABLE_POSTFIX=
 # Sets RPC hable that used for selection server url, postfix after RPC_LABEL used as label name
 RPC_LABEL_POSTFIX=
+# Sets path to root of AsyncAPI specification
+EVENTS_SPEC_PATH=./asyncapi.yml
+# Sets events log level
+EVENTS_LOG_LEVEL=info
+# Sets events varible that modifies selected server url, postfix after EVENTS_VARIABLE used as variable name
+EVENTS_VARIABLE_POSTFIX=
+# Sets events hable that used for selection server url, postfix after EVENTS_LABEL used as label name
+EVENTS_LABEL_POSTFIX=
 ```

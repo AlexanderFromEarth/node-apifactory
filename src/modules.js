@@ -9,19 +9,17 @@ import * as redis from './redis.js';
 import * as sql from './sql.js';
 import * as ids from './ids.js';
 
-export async function load(modulesPath) {
+export async function load(modulesPath, modules) {
   const modulesDir = path.join(process.cwd(), modulesPath);
   const hasModules = await fs.stat(modulesDir)
     .then(() => true)
     .catch(() => false);
 
-  const modules = {
-    [env.name]: env,
-    [logger.name]: logger,
-    [redis.name]: redis,
-    [sql.name]: sql,
-    [ids.name]: ids
-  };
+  modules[env.name] = env;
+  modules[logger.name] = logger;
+  modules[redis.name] = redis;
+  modules[sql.name] = sql;
+  modules[ids.name] = ids;
 
   if (hasModules) {
     for (const filename of await fs.readdir(modulesDir)) {

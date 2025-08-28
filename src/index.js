@@ -1,25 +1,44 @@
 import process from 'node:process';
 import fs from 'node:fs/promises';
 
+import Ajv from 'ajv/dist/2020.js';
+
 import * as http from './http.js';
 import * as rpc from './rpc.js';
+import * as events from './events.js';
 import * as env from './env.js';
 import * as modules from './modules.js';
 import * as services from './services.js';
 
 export default async function app() {
-  const appModules = await modules.load(env.get('modulesPath', './modules'));
-  const appServices = await services.load(env.get('servicesPath', './services'), appModules);
-  const apps = {};
   const httpSpecPath = env.get('httpSpecPath', './openapi.yml');
   const rpcSpecPath = env.get('rpcSpecPath', './openrpc.yml');
-  const [hasHttp, hasRpc] = await Promise.all([
+  const eventsSpecPath = env.get('eventsSpecPath', './asyncapi.yml');
+  const [hasHttp, hasRpc, hasEvents] = await Promise.all([
     fs.stat(httpSpecPath).then(() => true, () => false),
-    fs.stat(rpcSpecPath).then(() => true, () => false)
-  ]);
+    fs.stat(rpcSpecPath).then(() => true, () => false),
+    fs.stat(eventsSpecPath).then(() => true, () => false)
+  ]).then((apps) => {
+    if (!apps.some(Boolean)) {
+      throw new Error(`No apps started`);
+    }
+
+    return apps;
+  });
+
+  const ajv = new Ajv({
+    removeAdditional: true,
+    coerceTypes: true,
+    useDefaults: true
+  });
+
+  const appModules = {};
+  const appServices = {};
+  const apps = {};
 
   if (hasHttp) {
     apps.http = await http.receiver(appServices, {
+      ajv,
       specPath: httpSpecPath,
       logLevel: env.get('httpLogLevel', 'info'),
       labels: env.getByPrefix('httpLabel'),
@@ -28,16 +47,25 @@ export default async function app() {
   }
   if (hasRpc) {
     apps.rpc = await rpc.receiver(appServices, {
+      ajv,
       specPath: rpcSpecPath,
       logLevel: env.get('rpcLogLevel', 'info'),
       labels: env.getByPrefix('rpcLabel'),
       variables: env.getByPrefix('rpcVariable')
     });
   }
-
-  if (!Object.keys(apps).length) {
-    throw new Error(`No apps started`);
+  if (hasEvents) {
+    apps.events = await events.receiver(appServices, {
+      ajv,
+      specPath: eventsSpecPath,
+      logLevel: env.get('eventsLogLevel', 'info'),
+      labels: env.getByPrefix('eventsLabel'),
+      variables: env.getByPrefix('eventsVariable')
+    });
   }
+
+  await modules.load(env.get('modulesPath', './modules'), appModules);
+  await services.load(env.get('servicesPath', './services'), appModules, appServices);
 
   const dispose = async() => {
     for (const name in appModules) {
