@@ -190,4 +190,12 @@ HTTP_LOG_LEVEL=info
 HTTP_VARIABLE_POSTFIX=
 # Sets HTTP hable that used for selection server url, postfix after HTTP_LABEL used as label name
 HTTP_LABEL_POSTFIX=
+# Sets path to root of OpenRPC specification
+RPC_SPEC_PATH=./openrpc.yml
+# Sets rpc log level
+RPC_LOG_LEVEL=info
+# Sets RPC varible that modifies selected server url, postfix after RPC_VARIABLE used as variable name
+RPC_VARIABLE_POSTFIX=
+# Sets RPC hable that used for selection server url, postfix after RPC_LABEL used as label name
+RPC_LABEL_POSTFIX=
 ```
