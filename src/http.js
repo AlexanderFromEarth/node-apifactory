@@ -5,7 +5,7 @@ import $RefParser from '@apidevtools/json-schema-ref-parser';
 import fastify from 'fastify';
 import Ajv from 'ajv/dist/2020.js';
 
-export default async function http(services, settings) {
+export async function receiver(services, settings) {
   const app = fastify({
     logger: {
       level: settings.logLevel,

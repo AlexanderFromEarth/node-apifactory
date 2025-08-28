@@ -1,8 +1,8 @@
 import process from 'node:process';
 import fs from 'node:fs/promises';
 
-import {default as http} from './http.js';
-import {default as rpc} from './rpc.js';
+import * as http from './http.js';
+import * as rpc from './rpc.js';
 import * as env from './env.js';
 import * as modules from './modules.js';
 import * as services from './services.js';
@@ -19,7 +19,7 @@ export default async function app() {
   ]);
 
   if (hasHttp) {
-    apps.http = await http(appServices, {
+    apps.http = await http.receiver(appServices, {
       specPath: httpSpecPath,
       logLevel: env.get('httpLogLevel', 'info'),
       labels: env.getByPrefix('httpLabel'),
@@ -27,7 +27,7 @@ export default async function app() {
     });
   }
   if (hasRpc) {
-    apps.rpc = await rpc(appServices, {
+    apps.rpc = await rpc.receiver(appServices, {
       specPath: rpcSpecPath,
       logLevel: env.get('rpcLogLevel', 'info'),
       labels: env.getByPrefix('rpcLabel'),
