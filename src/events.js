@@ -8,7 +8,6 @@ import $RefParser from '@apidevtools/json-schema-ref-parser';
 export async function receiver(services, settings) {
   const {servers, channels, operations} =  await $RefParser.dereference(path.join(process.cwd(), settings.specPath));
   const logger = pino({level: settings.logLevel});
-  const serverConnectors = [];
 
   for (const serverId in servers) {
     const server = servers[serverId];
@@ -51,8 +50,6 @@ export async function receiver(services, settings) {
     switch (server.protocol) {
       case 'redis': {
         server.instance = redis.createClient({url: server.url});
-        serverConnectors.push(() => server.instance.connect()
-          .then(() => logger.info(`listening server ${server.url}`)));
         break;
       }
       default: {
@@ -74,6 +71,7 @@ export async function receiver(services, settings) {
     }
   }
 
+  const serverConnectors = new Map();
   const listenPromises = [];
 
   for (const operationId in operations) {
@@ -83,6 +81,42 @@ export async function receiver(services, settings) {
     if (operation.action === 'receive') {
       const {channel, messages} = operation;
       const operationServers = channel.servers ?? Object.values(servers);
+      const listener = async(rawMessage) => {
+        operationLogger.info('incoming message');
+
+        const service = services[operationId];
+
+        if (!service) {
+          operationLogger.error('handler not found');
+          return;
+        }
+
+        const parsedMessage = JSON.parse(rawMessage);
+
+        let validatedMessage;
+
+        for (const message of messages) {
+          if (message.compiledSchema(parsedMessage)) {
+            if (validatedMessage) {
+              operationLogger.error(`More than one message vliad`);
+              return;
+            } else {
+              validatedMessage = parsedMessage;
+            }
+          }
+        }
+
+        if (!validatedMessage) {
+          operationLogger.error(`No message valid`);
+          return;
+        }
+
+        try {
+          await service(validatedMessage);
+        } catch(e) {
+          operationLogger.error(`Runtime error: ${e?.stack ?? e?.message ?? e}`);
+        }
+      };
 
       for (const server of operationServers) {
         if (!server.id || !server.instance) {
@@ -91,44 +125,12 @@ export async function receiver(services, settings) {
 
         switch (server.protocol) {
           case 'redis': {
-            listenPromises.push(async() => {
-                return server.instance.subscribe(channel.address, async(rawMessage) => {
-                  operationLogger.info('incoming message');
+            if (!serverConnectors.has(server.id)) {
+              serverConnectors.set(server.id, () => server.instance.connect()
+                .then(() => logger.info(`Server connected to ${server.url}`)));
+            }
 
-                  const service = services[operationId];
-
-                  if (!service) {
-                    operationLogger.error('handler not found');
-                    return;
-                  }
-
-                  const parsedMessage = JSON.parse(rawMessage);
-
-                  let validatedMessage;
-
-                  for (const message of messages) {
-                    if (message.compiledSchema(parsedMessage)) {
-                      if (validatedMessage) {
-                        operationLogger.error(`More than one message vliad`);
-                        return;
-                      } else {
-                        validatedMessage = parsedMessage;
-                      }
-                    }
-                  }
-
-                  if (!validatedMessage) {
-                    operationLogger.error(`No message valid`);
-                    return;
-                  }
-
-                  try {
-                    await service(validatedMessage);
-                  } catch(e) {
-                    operationLogger.error(`Runtime error: ${e?.stack ?? e?.message ?? e}`);
-                  }
-                });
-              });
+            listenPromises.push(() => server.instance.subscribe(channel.address, listener));
             break;
           }
           default: {
@@ -141,7 +143,7 @@ export async function receiver(services, settings) {
 
   return {
     run: async() => {
-      await Promise.all(serverConnectors.map((connect) => connect()));
+      await Promise.all(Array.from(serverConnectors.values()).map((connect) => connect()));
       await Promise.all(listenPromises.map((listen) => listen()));
     },
     dispose: async() => {
