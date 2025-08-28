@@ -126,8 +126,11 @@ export async function receiver(services, settings) {
         switch (server.protocol) {
           case 'redis': {
             if (!serverConnectors.has(server.id)) {
-              serverConnectors.set(server.id, () => server.instance.connect()
-                .then(() => logger.info(`Server connected to ${server.url}`)));
+              serverConnectors.set(server.id, {
+                listen: () => server.instance.connect()
+                  .then(() => logger.info(`Server connected to ${server.url}`)),
+                dispose: () => server.instance.close()
+              });
             }
 
             listenPromises.push(() => server.instance.subscribe(channel.address, listener));
@@ -143,23 +146,11 @@ export async function receiver(services, settings) {
 
   return {
     run: async() => {
-      await Promise.all(Array.from(serverConnectors.values()).map((connect) => connect()));
+      await Promise.all(Array.from(serverConnectors.values()).map(({listen}) => listen()));
       await Promise.all(listenPromises.map((listen) => listen()));
     },
     dispose: async() => {
-      for (const serverId in servers) {
-        const server = servers[serverId];
-
-        switch (server.protocol) {
-          case 'redis': {
-            await server.instance.close();
-            break;
-          }
-          default: {
-            throw new Error(`Unsupported server protocol: ${server.protocol}`);
-          }
-        }
-      }
+      await Promise.all(Array.from(serverConnectors.values()).map(({dispose}) => dispose()));
     }
   };
 }

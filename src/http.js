@@ -5,14 +5,7 @@ import $RefParser from '@apidevtools/json-schema-ref-parser';
 import fastify from 'fastify';
 
 export async function receiver(services, settings) {
-  const app = fastify({
-    logger: {
-      level: settings.logLevel,
-      timestamp: true
-    },
-    return503OnClosing: true,
-    ignoreTrailingSlash: true
-  });
+  const serverByUrl = new Map()
   const schemaCompilers = {
     body: settings.ajv,
     params: settings.ajv,
@@ -20,63 +13,78 @@ export async function receiver(services, settings) {
     headers: settings.ajv
   };
 
-  app.setValidatorCompiler((req) => {
-    if (!req.httpPart) {
-      throw new Error('Missing httpPart')
+  const registerServers = (servers) => {
+    let idx = 0;
+
+    for (const server of servers) {
+      if (!server.url) {
+        servers.splice(idx, 1);
+        continue;
+      }
+
+      let isEvery = true;
+
+      for (const varName in server['x-labels']) {
+        if (server['x-labels'][varName] !== settings.labels[varName]) {
+          isEvery = false;
+          break;
+        }
+      }
+
+      if (!isEvery) {
+        servers.splice(idx, 1);
+        continue;
+      }
+
+      if (server.variables) {
+        for (const varName in server.variables) {
+          const value = settings.variables[varName] ?? server.variables[varName].default;
+
+          server.url = server.url.replace(`{${varName}}`, value);
+        }
+      }
+
+      if (serverByUrl.has(server.url)) {
+        servers.splice(idx, 1);
+        continue;
+      }
+
+      idx += 1;
+      serverByUrl.set(server.url, server);
+
+      const {hostname, port, pathname} = new URL(server.url);
+
+      server.host = hostname;
+      server.port = Number(port) || 8080;
+      server.pathname = pathname;
+      server.instance = fastify({
+        logger: {
+          level: settings.logLevel,
+          timestamp: true
+        },
+        return503OnClosing: true,
+        ignoreTrailingSlash: true
+      }).setValidatorCompiler((req) => {
+        if (!req.httpPart) {
+          throw new Error('Missing httpPart')
+        }
+
+        const compiler = schemaCompilers[req.httpPart]
+
+        if (!compiler) {
+          throw new Error(`Missing compiler for ${req.httpPart}`)
+        }
+
+        return compiler.compile(req.schema)
+      }).setErrorHandler((err, req, reply) => {
+        reply.code(err.statusCode).send();
+      });
     }
-    const compiler = schemaCompilers[req.httpPart]
-    if (!compiler) {
-      throw new Error(`Missing compiler for ${req.httpPart}`)
-    }
-    return compiler.compile(req.schema)
-  });
-  app.setErrorHandler((err, req, reply) => {
-    reply.code(err.statusCode).send();
-  });
+  };
 
   const {servers, paths} =  await $RefParser.dereference(path.join(process.cwd(), settings.specPath));
-  let exactServer;
-  let fuzzyServer;
 
-  for (const server of servers) {
-    let {url: serverUrl, 'x-labels': serverLabels} = server;
-
-    if (!serverUrl || !serverLabels) {
-      continue;
-    }
-
-    let isNotEvery = false;
-    let isSome = false;
-
-    for (const varName in serverLabels) {
-      if (serverLabels[varName] === settings.labels[varName]) {
-        isSome = true;
-      } else {
-        isNotEvery = true;
-      }
-    }
-
-    if (isSome && !fuzzyServer) {
-      fuzzyServer = server;
-    }
-    if (!isNotEvery) {
-      exactServer = server;
-      break;
-    }
-  }
-
-  const server = exactServer ?? fuzzyServer ?? servers[0] ?? {url: 'http://0.0.0.0'};
-  let serverUrl = server.url;
-
-  if (server.variables) {
-    for (const varName in server.variables) {
-      const value = settings.variables[varName] ?? server.variables[varName].default;
-
-      serverUrl = serverUrl.replace(`{${varName}}`, value);
-    }
-  }
-
-  const {hostname: host, port, pathname: serverPath} = new URL(serverUrl);
+  registerServers(servers);
 
   const allowedMethods = new Set(['get', 'post', 'put', 'patch', 'delete']);
   const errorSchema = {
@@ -94,12 +102,26 @@ export async function receiver(services, settings) {
     }
   };
 
+  const serverConnectors = new Map();
+
   for (const path in paths) {
     const pathObject = paths[path];
+
+    if (pathObject.servers) {
+      registerServers(pathObject.servers);
+    }
+
+    const pathServers = pathObject.servers ?? servers;
 
     for (const method of allowedMethods) {
       if (method in pathObject) {
         const methodObject = pathObject[method];
+
+        if (methodObject.servers) {
+          registerServers(methodObject.servers);
+        }
+
+        const methodServers = methodObject.servers ?? pathServers;
         const bodyName = methodObject.requestBody?.['x-name'] ?? 'body';
         const schema = {
           response: {
@@ -171,68 +193,78 @@ export async function receiver(services, settings) {
         }
 
         const operationPath = path.replaceAll(/\{([^}]+)}/g, (_, param) => `:${param}`);
+        const handler = async(req, reply) => {
+          const operation = services[methodObject.operationId];
 
-        app.route({
-          path: `${serverPath}/${operationPath}`.replaceAll(/\/{2,}/g, '/'),
-          method,
-          schema,
-          async handler(req, reply) {
-            const operation = services[methodObject.operationId];
+          if (!operation) {
+            return reply.code(405).send();
+          }
 
-            if (!operation) {
-              return reply.code(405).send();
+          const {result, meta} = await operation({
+            ...req.params,
+            ...req.query,
+            ...req.body && {[bodyName]: req.body}
+          });
+
+          const linkEntries = [];
+
+          for (const rel in meta.links) {
+            linkEntries.push(`<${meta.links[rel]}>; rel=${rel}`);
+          }
+
+          reply.header('link', linkEntries.join(', '));
+
+          if (result.success) {
+            return result.payload;
+          }
+
+          switch (result.error?.code) {
+            case 'invalid': {
+              return reply.code(400).send(result.error);
             }
-
-            const {result, meta} = await operation({
-              ...req.params,
-              ...req.query,
-              ...req.body && {[bodyName]: req.body}
-            });
-
-            const linkEntries = [];
-
-            for (const rel in meta.links) {
-              linkEntries.push(`<${meta.links[rel]}>; rel=${rel}`);
+            case 'noAccess': {
+              return reply.code(403).send(result.error);
             }
-
-            reply.header('link', linkEntries.join(', '));
-
-            if (result.success) {
-              return result.payload;
+            case 'notExists': {
+              return reply.code(404).send(result.error);
             }
-
-            switch (result.error?.code) {
-              case 'invalid': {
-                return reply.code(400).send(result.error);
-              }
-              case 'noAccess': {
-                return reply.code(403).send(result.error);
-              }
-              case 'notExists': {
-                return reply.code(404).send(result.error);
-              }
-              case 'alreadyExists': {
-                return reply.code(409).send(result.error);
-              }
-              case 'deleted': {
-                return reply.code(410).send(result.error);
-              }
-              default: {
-                return reply.code(422).send(result.error);
-              }
+            case 'alreadyExists': {
+              return reply.code(409).send(result.error);
+            }
+            case 'deleted': {
+              return reply.code(410).send(result.error);
+            }
+            default: {
+              return reply.code(422).send(result.error);
             }
           }
-        });
+        };
+
+        for (const server of methodServers) {
+          if (!serverConnectors.has(server.url)) {
+            serverConnectors.set(server.url, {
+              listen: () => server.instance.listen({host: server.host, port: server.port}),
+              dispose: () => server.instance.close()
+            });
+          }
+
+          server.instance.route({
+            path: `${server.pathname}/${operationPath}`.replaceAll(/\/{2,}/g, '/'),
+            method,
+            schema,
+            handler
+          });
+        }
       }
     }
   }
 
   return {
     run: async() => {
-      await app.listen({host, port: Number(port || '8080')});
+      await Promise.all(Array.from(serverConnectors.values(), ({listen}) => listen()));
     },
     dispose: async() => {
-      await app.close();
+      await Promise.all(Array.from(serverConnectors.values(), ({dispose}) => dispose()));
     }
   };
 }
