@@ -4,7 +4,16 @@ info:
   description: Tasks service example
   version: 1.0.0
 servers:
-  - url: 'http://localhost'
+  - url: 'http://localhost:{port}'
+    variables:
+      port:
+        default: '8000'
+  - url: 'http://0.0.0.0:{port}'
+    x-labels:
+      type: global
+    variables:
+      port:
+        default: '8000'
 paths:
   /users/{userId}/tasks:
     parameters:
@@ -116,7 +125,6 @@ components:
           $ref: '#/components/schemas/Description'
     Id:
       type: integer
-      format: int32
     Title:
       type: string
       minLength: 1

@@ -13,7 +13,51 @@ npm install node-apifactory
 
 For more detailed and complex examples, check the examples directory.
 
-### ./spec.yml
+### ./openrpc.yml
+```yaml
+openrpc: 1.2.1
+info:
+  title: Title
+  version: 1.0.0
+servers:
+  - url: 'http://localhost:8001'
+  - url: 'http://localhost:8001'
+    x-labels:
+      app: tasks
+methods:
+  - name: createTask
+    params:
+      - name: userId
+        required: true
+        schema:
+          type: integer
+          format: int32
+      - name: task
+        required: true
+        schema:
+          type: object
+          required:
+            - title
+            - descr
+          properties:
+            title:
+              type: string
+            descr:
+              type: string
+    result:
+      name: newTask
+      required: true
+      schema:
+        type: object
+        required:
+          - id
+        properties:
+          id:
+            type: integer
+            format: int32
+```
+
+### ./openapi.yml
 ```yaml
 openapi: 3.1.0
 info:
@@ -139,7 +183,7 @@ PREFIX_DATABASE_URL=
 # Sets redis connection url, prefix before _REDIS_URL used as name of connection
 PREFIX_REDIS_URL=
 # Sets path to root of OpenAPI specification
-HTTP_SPEC_PATH=./spec.yml
+HTTP_SPEC_PATH=./openapi.yml
 # Sets http log level
 HTTP_LOG_LEVEL=info
 # Sets HTTP varible that modifies selected server url, postfix after HTTP_VARIABLE used as variable name

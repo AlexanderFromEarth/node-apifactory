@@ -1,0 +1,106 @@
+openrpc: 1.2.1
+info:
+  title: tasks
+  description: Tasks service example
+  version: 1.0.0
+servers:
+  - url: 'http://localhost'
+methods:
+  - name: getTasks
+    params:
+      - $ref: '#/components/contentDescriptors/UserId'
+    result:
+      name: tasks
+      required: true
+      schema:
+        $ref: '#/components/schemas/Tasks'
+  - name: createTask
+    params:
+      - $ref: '#/components/contentDescriptors/UserId'
+      - name: task
+        required: true
+        schema:
+          $ref: '#/components/schemas/NewTask'
+    result:
+      name: taskId
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+  - name: getTask
+    params:
+      - $ref: '#/components/contentDescriptors/UserId'
+      - $ref: '#/components/contentDescriptors/TaskId'
+    result:
+      name: task
+      required: true
+      schema:
+        $ref: '#/components/schemas/Task'
+  - name: updateTask
+    params:
+      - $ref: '#/components/contentDescriptors/UserId'
+      - $ref: '#/components/contentDescriptors/TaskId'
+      - name: taskParams
+        required: true
+        schema:
+          $ref: '#/components/schemas/TaskParams'
+  - name: deleteTask
+    params:
+      - $ref: '#/components/contentDescriptors/UserId'
+      - $ref: '#/components/contentDescriptors/TaskId'
+components:
+  contentDescriptors:
+    UserId:
+      name: userId
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    TaskId:
+      name: taskId
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+  schemas:
+    Tasks:
+      type: array
+      items:
+        $ref: '#/components/schemas/Task'
+    Task:
+      type: object
+      required:
+        - id
+        - title
+        - description
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        title:
+          $ref: '#/components/schemas/Title'
+        description:
+          $ref: '#/components/schemas/Description'
+    TaskParams:
+      type: object
+      minProperties: 1
+      properties:
+        title:
+          $ref: '#/components/schemas/Title'
+        description:
+          $ref: '#/components/schemas/Description'
+    NewTask:
+      type: object
+      required:
+        - title
+        - description
+      properties:
+        title:
+          $ref: '#/components/schemas/Title'
+        description:
+          $ref: '#/components/schemas/Description'
+    Id:
+      type: integer
+    Title:
+      type: string
+      minLength: 1
+    Description:
+      nullable: true
+      type: string
+      minLength: 1

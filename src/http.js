@@ -3,6 +3,7 @@ import process from 'node:process';
 
 import $RefParser from '@apidevtools/json-schema-ref-parser';
 import fastify from 'fastify';
+import Ajv from 'ajv/dist/2020.js';
 
 export default async function http(services, settings) {
   const app = fastify({
@@ -11,14 +12,32 @@ export default async function http(services, settings) {
       timestamp: true
     },
     return503OnClosing: true,
-    ignoreTrailingSlash: true,
-    ajv: {
-      customOptions: {
-        removeAdditional: true,
-        coerceTypes: true,
-        useDefaults: true
-      }
+    ignoreTrailingSlash: true
+  });
+  const ajvOptions = {
+    removeAdditional: true,
+    coerceTypes: true,
+    useDefaults: true
+  };
+  const schemaCompilers = {
+    body: new Ajv(ajvOptions),
+    params: new Ajv(ajvOptions),
+    querystring: new Ajv(ajvOptions),
+    headers: new Ajv(ajvOptions),
+  };
+
+  app.setValidatorCompiler((req) => {
+    if (!req.httpPart) {
+      throw new Error('Missing httpPart')
     }
+    const compiler = schemaCompilers[req.httpPart]
+    if (!compiler) {
+      throw new Error(`Missing compiler for ${req.httpPart}`)
+    }
+    return compiler.compile(req.schema)
+  });
+  app.setErrorHandler((err, req, reply) => {
+    reply.code(err.statusCode).send();
   });
 
   const {servers, paths} =  await $RefParser.dereference(path.join(process.cwd(), settings.specPath));
@@ -161,8 +180,8 @@ export default async function http(services, settings) {
         const operationPath = path.replaceAll(/\{([^}]+)}/g, (_, param) => `:${param}`);
 
         app.route({
-          method,
           path: `${serverPath}/${operationPath}`.replaceAll(/\/{2,}/g, '/'),
+          method,
           schema,
           async handler(req, reply) {
             if (!operation) {
