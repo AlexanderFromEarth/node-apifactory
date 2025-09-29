@@ -3,6 +3,7 @@ import process from 'node:process';
 
 import pino from 'pino';
 import redis from 'redis';
+import amqplib from 'amqplib';
 import $RefParser from '@apidevtools/json-schema-ref-parser';
 
 export async function receiver(services, settings) {
@@ -11,14 +12,9 @@ export async function receiver(services, settings) {
 
   for (const serverId in servers) {
     const server = servers[serverId];
-    const {
-      host: serverHost,
-      pathname,
-      protocol,
-      'x-labels': serverLabels
-    } = server;
+    const {'x-labels': serverLabels} = server;
 
-    if (!serverHost || !protocol) {
+    if (!server.host || !server.protocol) {
       continue;
     }
 
@@ -36,7 +32,7 @@ export async function receiver(services, settings) {
       continue;
     }
 
-    server.url = `${protocol}://${serverHost}${pathname}`;
+    server.url = `${server.protocol}://${server.host}${server.pathname ?? '/'}`;
     server.id = serverId;
 
     if (server.variables) {
@@ -49,7 +45,23 @@ export async function receiver(services, settings) {
 
     switch (server.protocol) {
       case 'redis': {
-        server.instance = redis.createClient({url: server.url});
+        server.instance = redis.createClient({
+          url: server.url,
+          RESP: Number(server.protocolVersion || '2')
+        });
+        break;
+      }
+      case 'amqp': {
+        if (server.protocolVersion && server.protocolVersion.replace(/-/g, '.') !== '0.9.1') {
+          throw new Error(`Unsupported server protocol version: ${server.protocolVersion}`);
+        }
+
+        server.instance = {
+          connect: () => amqplib.connect(server.url).then((conn) => {
+            server.instance.conn = conn;
+          }),
+          close: () => server.instance.conn?.close()
+        };
         break;
       }
       default: {
@@ -122,22 +134,26 @@ export async function receiver(services, settings) {
         if (!server.id || !server.instance) {
           continue;
         }
+        if (!serverConnectors.has(server.id)) {
+          serverConnectors.set(server.id, {
+            listen: () => server.instance.connect()
+              .then(() => logger.info(`Server connected to ${server.url}`)),
+            dispose: () => server.instance.close()
+          });
+        }
 
         switch (server.protocol) {
           case 'redis': {
-            if (!serverConnectors.has(server.id)) {
-              serverConnectors.set(server.id, {
-                listen: () => server.instance.connect()
-                  .then(() => logger.info(`Server connected to ${server.url}`)),
-                dispose: () => server.instance.close()
-              });
-            }
-
             listenPromises.push(() => server.instance.subscribe(channel.address, listener));
             break;
           }
-          default: {
-            throw new Error(`Unsupported server protocol: ${server.protocol}`);
+          case 'amqp': {
+            listenPromises.push(() => server.instance.conn?.createChannel()
+              .then((ch) => ch.consume(channel.address, async(msg) => {
+                await ch.ack(msg);
+                await listener(msg.content.toString());
+              })));
+            break;
           }
         }
       }

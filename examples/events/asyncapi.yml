@@ -8,6 +8,10 @@ servers:
     host: localhost
     pathname: /5
     protocol: redis
+  rabbitmq-local:
+    host: user:password@localhost
+    protocol: amqp
+    protocolVersion: 0-9-1
 defaultContentType: application/json
 channels:
   taskCreated:
