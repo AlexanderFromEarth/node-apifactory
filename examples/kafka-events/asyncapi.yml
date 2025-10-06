@@ -1,0 +1,54 @@
+asyncapi: 3.0.0
+info:
+  title: tasks
+  description: Tasks service example
+  version: 1.0.0
+servers:
+  kafka-local:
+    host: localhost:9092
+    protocol: kafka
+    protocolVersion: 1.0.0
+defaultContentType: application/json
+channels:
+  taskCreated:
+    address: tasks.created
+    messages:
+      taskCreated:
+        payload:
+          type: object
+          required:
+            - task
+          properties:
+            task:
+              $ref: '#/components/schemas/Task'
+operations:
+  createTask:
+    action: receive
+    channel:
+      $ref: '#/channels/taskCreated'
+    messages:
+      - $ref: '#/channels/taskCreated/messages/taskCreated'
+components:
+  schemas:
+    Task:
+      type: object
+      required:
+        - id
+        - title
+        - description
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        title:
+          $ref: '#/components/schemas/Title'
+        description:
+          $ref: '#/components/schemas/Description'
+    Id:
+      type: integer
+    Title:
+      type: string
+      minLength: 1
+    Description:
+      nullable: true
+      type: string
+      minLength: 1

@@ -4,6 +4,7 @@ import process from 'node:process';
 import pino from 'pino';
 import redis from 'redis';
 import amqplib from 'amqplib';
+import kafka from 'kafkajs';
 import $RefParser from '@apidevtools/json-schema-ref-parser';
 
 export async function receiver(services, settings) {
@@ -43,6 +44,8 @@ export async function receiver(services, settings) {
       }
     }
 
+    server.parsedUrl = new URL(server.url);
+
     switch (server.protocol) {
       case 'redis': {
         server.instance = redis.createClient({
@@ -61,6 +64,15 @@ export async function receiver(services, settings) {
             server.instance.conn = conn;
           }),
           close: () => server.instance.conn?.close()
+        };
+        break;
+      }
+      case 'kafka': {
+        server.instance = {
+          client: new kafka.Kafka({brokers: [`${server.parsedUrl.hostname}:${server.parsedUrl.port}`]})
+            .consumer({groupId: settings.appName}),
+          connect: () => server.instance.client.connect(),
+          close: () => server.instance.client.disconnect()
         };
         break;
       }
@@ -84,6 +96,7 @@ export async function receiver(services, settings) {
   }
 
   const serverConnectors = new Map();
+  const listenersByChannelId = new Map();
   const listenPromises = [];
 
   for (const operationId in operations) {
@@ -103,7 +116,14 @@ export async function receiver(services, settings) {
           return;
         }
 
-        const parsedMessage = JSON.parse(rawMessage);
+        let parsedMessage;
+
+        try {
+          parsedMessage = JSON.parse(rawMessage);
+        } catch(_) {
+          operationLogger.error('Message is not json');
+          return;
+        }
 
         let validatedMessage;
 
@@ -130,15 +150,30 @@ export async function receiver(services, settings) {
         }
       };
 
+      if (!listenersByChannelId.has(channel.address)) {
+        listenersByChannelId.set(channel.address, [listener]);
+      } else {
+        listenersByChannelId.get(channel.address).push(listener);
+      }
+
       for (const server of operationServers) {
         if (!server.id || !server.instance) {
           continue;
         }
         if (!serverConnectors.has(server.id)) {
           serverConnectors.set(server.id, {
-            listen: () => server.instance.connect()
+            init: () => server.instance.connect()
               .then(() => logger.info(`Server connected to ${server.url}`)),
-            dispose: () => server.instance.close()
+            dispose: () => server.instance.close(),
+            ...server.protocol === 'kafka' ? {
+              afterListen: () => server.instance.client.run({
+                eachMessage: async({topic, message}) => {
+                  const msg = message.value.toString();
+
+                  await Promise.all(listenersByChannelId.get(topic).map((listener) => listener(msg)));
+                }
+              }),
+            } : {}
           });
         }
 
@@ -155,6 +190,10 @@ export async function receiver(services, settings) {
               })));
             break;
           }
+          case 'kafka': {
+            listenPromises.push(() => server.instance.client.subscribe({topic: channel.address}));
+            break;
+          }
         }
       }
     }
@@ -162,8 +201,9 @@ export async function receiver(services, settings) {
 
   return {
     run: async() => {
-      await Promise.all(Array.from(serverConnectors.values()).map(({listen}) => listen()));
+      await Promise.all(Array.from(serverConnectors.values()).map(({init}) => init()));
       await Promise.all(listenPromises.map((listen) => listen()));
+      await Promise.all(Array.from(serverConnectors.values()).map(({afterListen}) => afterListen?.()));
     },
     dispose: async() => {
       await Promise.all(Array.from(serverConnectors.values()).map(({dispose}) => dispose()));

@@ -1,5 +1,6 @@
-import process from 'node:process';
 import fs from 'node:fs/promises';
+import path from 'node:path';
+import process from 'node:process';
 
 import Ajv from 'ajv/dist/2020.js';
 
@@ -11,6 +12,10 @@ import * as modules from './modules.js';
 import * as services from './services.js';
 
 export default async function app() {
+  const packageJsonPath = path.join(process.cwd(), env.get('packagePath', './package.json'));
+  const appName = env.get('appName') ?? await fs.readFile(packageJsonPath, 'utf8')
+    .then((content) => JSON.parse(content).name)
+    .catch(() => 'node-apifactory');
   const httpSpecPath = env.get('httpSpecPath', './openapi.yml');
   const rpcSpecPath = env.get('rpcSpecPath', './openrpc.yml');
   const eventsSpecPath = env.get('eventsSpecPath', './asyncapi.yml');
@@ -39,6 +44,7 @@ export default async function app() {
   if (hasHttp) {
     apps.http = await http.receiver(appServices, {
       ajv,
+      appName,
       specPath: httpSpecPath,
       logLevel: env.get('httpLogLevel', 'info'),
       labels: env.getByPrefix('httpLabel'),
@@ -48,6 +54,7 @@ export default async function app() {
   if (hasRpc) {
     apps.rpc = await rpc.receiver(appServices, {
       ajv,
+      appName,
       specPath: rpcSpecPath,
       logLevel: env.get('rpcLogLevel', 'info'),
       labels: env.getByPrefix('rpcLabel'),
@@ -57,6 +64,7 @@ export default async function app() {
   if (hasEvents) {
     apps.events = await events.receiver(appServices, {
       ajv,
+      appName,
       specPath: eventsSpecPath,
       logLevel: env.get('eventsLogLevel', 'info'),
       labels: env.getByPrefix('eventsLabel'),

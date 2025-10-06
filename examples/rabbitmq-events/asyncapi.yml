@@ -4,10 +4,6 @@ info:
   description: Tasks service example
   version: 1.0.0
 servers:
-  redis-local:
-    host: localhost
-    pathname: /5
-    protocol: redis
   rabbitmq-local:
     host: user:password@localhost
     protocol: amqp
