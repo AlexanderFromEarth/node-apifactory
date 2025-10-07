@@ -16,21 +16,6 @@ export default async function app() {
   const appName = env.get('appName') ?? await fs.readFile(packageJsonPath, 'utf8')
     .then((content) => JSON.parse(content).name)
     .catch(() => 'node-apifactory');
-  const httpSpecPath = env.get('httpSpecPath', './openapi.yml');
-  const rpcSpecPath = env.get('rpcSpecPath', './openrpc.yml');
-  const eventsSpecPath = env.get('eventsSpecPath', './asyncapi.yml');
-  const [hasHttp, hasRpc, hasEvents] = await Promise.all([
-    fs.stat(httpSpecPath).then(() => true, () => false),
-    fs.stat(rpcSpecPath).then(() => true, () => false),
-    fs.stat(eventsSpecPath).then(() => true, () => false)
-  ]).then((apps) => {
-    if (!apps.some(Boolean)) {
-      throw new Error(`No apps started`);
-    }
-
-    return apps;
-  });
-
   const ajv = new Ajv({
     removeAdditional: true,
     coerceTypes: true,
@@ -39,48 +24,49 @@ export default async function app() {
 
   const appModules = {};
   const appServices = {};
-  const apps = {};
-
-  if (hasHttp) {
-    apps.http = await http.receiver(appServices, {
+  const apps = {
+    http: await http.load(appServices, {
       ajv,
       appName,
-      specPath: httpSpecPath,
+      specPath: env.get('httpSpecPath', './openapi.yml'),
       logLevel: env.get('httpLogLevel', 'info'),
       labels: env.getByPrefix('httpLabel'),
       variables: env.getByPrefix('httpVariable')
-    });
-  }
-  if (hasRpc) {
-    apps.rpc = await rpc.receiver(appServices, {
+    }),
+    rpc: await rpc.load(appServices, {
       ajv,
       appName,
-      specPath: rpcSpecPath,
+      specPath: env.get('rpcSpecPath', './openrpc.yml'),
       logLevel: env.get('rpcLogLevel', 'info'),
       labels: env.getByPrefix('rpcLabel'),
       variables: env.getByPrefix('rpcVariable')
-    });
-  }
-  if (hasEvents) {
-    apps.events = await events.receiver(appServices, {
+    }),
+    events: await events.load(appServices, {
       ajv,
       appName,
-      specPath: eventsSpecPath,
+      specPath: env.get('eventsSpecPath', './asyncapi.yml'),
       logLevel: env.get('eventsLogLevel', 'info'),
       labels: env.getByPrefix('eventsLabel'),
       variables: env.getByPrefix('eventsVariable')
-    });
+    })
+  };
+
+  if (apps.events) {
+    appModules.events = {
+      name: 'events',
+      make: () => ({action: () => apps.events.sender})
+    };
   }
 
-  await modules.load(env.get('modulesPath', './modules'), appModules);
-  await services.load(env.get('servicesPath', './services'), appModules, appServices);
+  const resolvedModules = await modules.load(env.get('modulesPath', './modules'), appModules);
+  await services.load(env.get('servicesPath', './services'), resolvedModules, appServices);
 
   const dispose = async() => {
-    for (const name in appModules) {
-      await appModules[name].dispose?.();
+    for (const name in resolvedModules) {
+      await resolvedModules[name].dispose?.();
     }
     for (const name in apps) {
-      await apps[name].dispose?.();
+      await apps[name]?.receiver?.dispose?.();
     }
   };
 
@@ -90,7 +76,7 @@ export default async function app() {
   const waiting = [];
 
   for (const type in apps) {
-    waiting.push(apps[type].run());
+    waiting.push(apps[type]?.receiver?.run());
   }
 
   await Promise.all(waiting);

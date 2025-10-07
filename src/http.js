@@ -1,10 +1,18 @@
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
 import $RefParser from '@apidevtools/json-schema-ref-parser';
 import fastify from 'fastify';
 
-export async function receiver(services, settings) {
+export async function load(services, settings) {
+  const specPath = path.join(process.cwd(), settings.specPath);
+  const hasSpec = await fs.stat(specPath).then(() => true, () => false);
+
+  if (!hasSpec) {
+    return null;
+  }
+
   const serverByUrl = new Map()
   const schemaCompilers = {
     body: settings.ajv,
@@ -77,12 +85,12 @@ export async function receiver(services, settings) {
 
         return compiler.compile(req.schema)
       }).setErrorHandler((err, req, reply) => {
-        reply.code(err.statusCode).send();
+        reply.code(err.statusCode ?? 500).send();
       });
     }
   };
 
-  const {servers, paths} =  await $RefParser.dereference(path.join(process.cwd(), settings.specPath));
+  const {servers, paths} =  await $RefParser.dereference(specPath);
 
   registerServers(servers);
 
@@ -260,11 +268,13 @@ export async function receiver(services, settings) {
   }
 
   return {
-    run: async() => {
-      await Promise.all(Array.from(serverConnectors.values(), ({listen}) => listen()));
-    },
-    dispose: async() => {
-      await Promise.all(Array.from(serverConnectors.values(), ({dispose}) => dispose()));
+    receiver: {
+      run: async() => {
+        await Promise.all(Array.from(serverConnectors.values(), ({listen}) => listen()));
+      },
+      dispose: async() => {
+        await Promise.all(Array.from(serverConnectors.values(), ({dispose}) => dispose()));
+      }
     }
-  };
+  }
 }

@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -7,8 +8,15 @@ import amqplib from 'amqplib';
 import kafka from 'kafkajs';
 import $RefParser from '@apidevtools/json-schema-ref-parser';
 
-export async function receiver(services, settings) {
-  const {servers, channels, operations} =  await $RefParser.dereference(path.join(process.cwd(), settings.specPath));
+export async function load(services, settings) {
+  const specPath = path.join(process.cwd(), settings.specPath);
+  const hasSpec = await fs.stat(specPath).then(() => true, () => false);
+
+  if (!hasSpec) {
+    return null;
+  }
+
+  const {servers, channels, operations} =  await $RefParser.dereference(specPath);
   const logger = pino({level: settings.logLevel});
 
   for (const serverId in servers) {
@@ -48,10 +56,27 @@ export async function receiver(services, settings) {
 
     switch (server.protocol) {
       case 'redis': {
-        server.instance = redis.createClient({
-          url: server.url,
-          RESP: Number(server.protocolVersion || '2')
-        });
+        server.instance = {
+          _producer: redis.createClient({
+            url: server.url,
+            RESP: Number(server.protocolVersion || '2')
+          }),
+          _consumer: redis.createClient({
+            url: server.url,
+            RESP: Number(server.protocolVersion || '2')
+          }),
+          connect: () => Promise.all([
+            server.instance._producer.connect(),
+            server.instance._consumer.connect(),
+          ]),
+          publish: (topic, message) => server.instance._consumer.publish(topic, message),
+          subscribe: (topic, handler) => server.instance._consumer.subscribe(topic, handler),
+          listen: () => {},
+          close: () => Promise.all([
+            server.instance._producer.close(),
+            server.instance._consumer.close(),
+          ])
+        };
         break;
       }
       case 'amqp': {
@@ -60,19 +85,55 @@ export async function receiver(services, settings) {
         }
 
         server.instance = {
-          connect: () => amqplib.connect(server.url).then((conn) => {
-            server.instance.conn = conn;
+          connect: () => amqplib.connect(server.url)
+            .then((client) => { server.instance._client = client })
+            .then(() => Promise.all([
+              server.instance._client.createChannel()
+                .then((channel) => { server.instance._pubChannel = channel }),
+              server.instance._client.createChannel()
+                .then((channel) => { server.instance._subChannel = channel })
+            ])),
+          publish: (topic, message) => server.instance._pubChannel.publish(topic, '', Buffer.from(message)),
+          subscribe: (topic, handler) => server.instance._subChannel.consume(topic, async(msg) => {
+            await server.instance._subChannel.ack(msg);
+            await handler(msg.content.toString());
           }),
-          close: () => server.instance.conn?.close()
+          listen: () => {},
+          close: () => Promise.all([
+            server.instance._pubChannel.close(),
+            server.instance._subChannel.close()
+          ]).then(() => server.instance._client?.close())
         };
         break;
       }
       case 'kafka': {
+        const client = new kafka.Kafka({brokers: [`${server.parsedUrl.hostname}:${server.parsedUrl.port}`]});
+
         server.instance = {
-          client: new kafka.Kafka({brokers: [`${server.parsedUrl.hostname}:${server.parsedUrl.port}`]})
-            .consumer({groupId: settings.appName}),
-          connect: () => server.instance.client.connect(),
-          close: () => server.instance.client.disconnect()
+          _handlerByTopic: new Map(),
+          _client: client,
+          _producer: client.producer(),
+          _consumer: client.consumer({groupId: settings.appName}),
+          connect: () => Promise.all([
+            server.instance._producer.connect(),
+            server.instance._consumer.connect()
+          ]),
+          publish: (topic, message) => server.instance._producer.send({topic, messages: [{value: message}]}),
+          subscribe: (topic, handler) => server.instance._consumer.subscribe({topic})
+            .then(() => server.instance._handlerByTopic.has(topic) ?
+              server.instance._handlerByTopic.get(topic).push(handler) :
+              server.instance._handlerByTopic.set(topic, [handler])),
+          listen: () => server.instance._consumer.run({
+            eachMessage: ({topic, message: {value}}) => {
+              const msg = value?.toString();
+
+              return Promise.all(server.instance._handlerByTopic.get(topic)?.map((handle) => handle(msg)))
+            }
+          }),
+          close: () => Promise.all([
+            server.instance._consumer.disconnect(),
+            server.instance._producer.disconnect()
+          ])
         };
         break;
       }
@@ -96,117 +157,128 @@ export async function receiver(services, settings) {
   }
 
   const serverConnectors = new Map();
-  const listenersByChannelId = new Map();
+  const senderServers = new Map();
+  const sender = {};
   const listenPromises = [];
 
   for (const operationId in operations) {
     const operation = operations[operationId];
     const operationLogger = logger.child({operationId, event: operation.channel.address});
+    const {channel, messages} = operation;
+    const operationServers = channel.servers ?? Object.values(servers);
 
-    if (operation.action === 'receive') {
-      const {channel, messages} = operation;
-      const operationServers = channel.servers ?? Object.values(servers);
-      const listener = async(rawMessage) => {
-        operationLogger.info('incoming message');
+    for (const server of operationServers) {
+      if (!server.id || !server.instance) {
+        continue;
+      }
+      if (!serverConnectors.has(server.id)) {
+        serverConnectors.set(server.id, {
+          ...server.instance,
+          connect: () => server.instance.connect()
+            .then(() => logger.info(`Server connected to ${server.url}`))
+        });
+      }
+      if (operation.action === 'receive') {
+        listenPromises.push(() => server.instance.subscribe(channel.address, async(rawMessage) => {
+          operationLogger.info('incoming message');
 
-        const service = services[operationId];
+          const service = services[operationId];
 
-        if (!service) {
-          operationLogger.error('handler not found');
-          return;
-        }
+          if (!service) {
+            operationLogger.error('handler not found');
+            return;
+          }
 
-        let parsedMessage;
+          let parsedMessage;
 
-        try {
-          parsedMessage = JSON.parse(rawMessage);
-        } catch(_) {
-          operationLogger.error('Message is not json');
-          return;
-        }
+          try {
+            parsedMessage = JSON.parse(rawMessage);
+          } catch(_) {
+            operationLogger.error('Message is not json');
+            return;
+          }
 
-        let validatedMessage;
+          let validatedMessage;
 
-        for (const message of messages) {
-          if (message.compiledSchema(parsedMessage)) {
-            if (validatedMessage) {
-              operationLogger.error(`More than one message vliad`);
-              return;
-            } else {
-              validatedMessage = parsedMessage;
+          for (const message of messages) {
+            if (message.compiledSchema(parsedMessage)) {
+              if (validatedMessage) {
+                operationLogger.error(`More than one message valid`);
+                return;
+              } else {
+                validatedMessage = parsedMessage;
+              }
             }
           }
-        }
 
-        if (!validatedMessage) {
-          operationLogger.error(`No message valid`);
-          return;
-        }
+          if (!validatedMessage) {
+            operationLogger.error(`No message valid`);
+            return;
+          }
 
-        try {
-          await service(validatedMessage);
-        } catch(e) {
-          operationLogger.error(`Runtime error: ${e?.stack ?? e?.message ?? e}`);
-        }
-      };
+          try {
+            await service(validatedMessage);
+          } catch(e) {
+            operationLogger.error(`Runtime error: ${e?.stack ?? e?.message ?? e}`);
+          }
+        }));
+      } else if (operation.action === 'send') {
+        if (!sender[operationId]) {
+          senderServers.set(operationId, [server.instance]);
+          sender[operationId] = async(rawMessage) => {
+            operationLogger.info('sending message');
 
-      if (!listenersByChannelId.has(channel.address)) {
-        listenersByChannelId.set(channel.address, [listener]);
-      } else {
-        listenersByChannelId.get(channel.address).push(listener);
-      }
+            let validatedMessage;
 
-      for (const server of operationServers) {
-        if (!server.id || !server.instance) {
-          continue;
-        }
-        if (!serverConnectors.has(server.id)) {
-          serverConnectors.set(server.id, {
-            init: () => server.instance.connect()
-              .then(() => logger.info(`Server connected to ${server.url}`)),
-            dispose: () => server.instance.close(),
-            ...server.protocol === 'kafka' ? {
-              afterListen: () => server.instance.client.run({
-                eachMessage: async({topic, message}) => {
-                  const msg = message.value.toString();
-
-                  await Promise.all(listenersByChannelId.get(topic).map((listener) => listener(msg)));
+            for (const message of messages) {
+              if (message.compiledSchema(rawMessage)) {
+                if (validatedMessage) {
+                  operationLogger.error(`More than one message valid`);
+                  return;
+                } else {
+                  validatedMessage = rawMessage;
                 }
-              }),
-            } : {}
-          });
-        }
+              }
+            }
 
-        switch (server.protocol) {
-          case 'redis': {
-            listenPromises.push(() => server.instance.subscribe(channel.address, listener));
-            break;
-          }
-          case 'amqp': {
-            listenPromises.push(() => server.instance.conn?.createChannel()
-              .then((ch) => ch.consume(channel.address, async(msg) => {
-                await ch.ack(msg);
-                await listener(msg.content.toString());
-              })));
-            break;
-          }
-          case 'kafka': {
-            listenPromises.push(() => server.instance.client.subscribe({topic: channel.address}));
-            break;
-          }
+            if (!validatedMessage) {
+              operationLogger.error(`No message valid`);
+              return;
+            }
+
+            let serializedMessage;
+
+            try {
+              serializedMessage = JSON.stringify(validatedMessage);
+            } catch(_) {
+              operationLogger.error('Message is not serializable');
+              return;
+            }
+            try {
+              await Promise.all(senderServers.get(operationId)
+                .map((server) => server.publish(channel.address, serializedMessage)));
+            } catch(e) {
+              operationLogger.error(`Runtime error: ${e?.stack ?? e?.message ?? e}`);
+            }
+          };
+        } else {
+          senderServers.get(operationId).push(server.instance);
         }
       }
     }
   }
 
   return {
-    run: async() => {
-      await Promise.all(Array.from(serverConnectors.values()).map(({init}) => init()));
-      await Promise.all(listenPromises.map((listen) => listen()));
-      await Promise.all(Array.from(serverConnectors.values()).map(({afterListen}) => afterListen?.()));
+    receiver: {
+      run: async() => {
+        await Promise.all(Array.from(serverConnectors.values()).map(({connect}) => connect()));
+        await Promise.all(listenPromises.map((listen) => listen()));
+        await Promise.all(Array.from(serverConnectors.values()).map(({listen}) => listen()));
+      },
+      dispose: async() => {
+        await Promise.all(Array.from(serverConnectors.values()).map(({close}) => close()));
+      }
     },
-    dispose: async() => {
-      await Promise.all(Array.from(serverConnectors.values()).map(({dispose}) => dispose()));
-    }
+    sender
   };
 }

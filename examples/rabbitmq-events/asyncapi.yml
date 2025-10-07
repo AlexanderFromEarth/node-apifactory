@@ -22,6 +22,12 @@ channels:
             task:
               $ref: '#/components/schemas/Task'
 operations:
+  taskCreated:
+    action: send
+    channel:
+      $ref: '#/channels/taskCreated'
+    messages:
+      - $ref: '#/channels/taskCreated/messages/taskCreated'
   createTask:
     action: receive
     channel:

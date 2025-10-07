@@ -36,22 +36,19 @@ export interface Modules extends Record<string, (...args: any[]) => any> {
   redis: (name: string) => RedisClientPoolType;
   logger: (name: string) => Logger;
   ids: {
-    (): {
-      valueOf(): string;
-      toString(): string;
-      toJSON(): string;
-    };
-    (id: string): {
-      valueOf(): string;
-      toString(): string;
-      toJSON(): string;
-    };
-    (id: {value: string}): {
-      valueOf(): string;
-      toString(): string;
-      toJSON(): string;
-    };
-  }
+    (): Id;
+    (id: string): Id;
+    (id: {value: string}): Id;
+  };
+  events: <Obj extends Record<string, object>>() => {
+    [K in keyof Obj]: (params: Obj[K]) => Promise<void>
+  };
+}
+
+interface Id {
+  valueOf(): string;
+  toString(): string;
+  toJSON(): string;
 }
 
 export type ModuleFactory<Key extends keyof Modules, Deps extends keyof Modules = never> =

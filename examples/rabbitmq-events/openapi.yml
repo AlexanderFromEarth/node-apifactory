@@ -1,0 +1,57 @@
+openapi: 3.1.0
+info:
+  title: tasks
+  description: Tasks service example
+  version: 1.0.0
+servers:
+  - url: 'http://localhost'
+paths:
+  /users/{userId}/tasks:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    post:
+      operationId: createTasks
+      requestBody:
+        x-name: tasks
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/Task'
+      responses:
+        200:
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Id'
+components:
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+  schemas:
+    Task:
+      type: object
+      required:
+        - title
+        - description
+      properties:
+        title:
+          $ref: '#/components/schemas/Title'
+        description:
+          $ref: '#/components/schemas/Description'
+    Id:
+      type: integer
+    Title:
+      type: string
+      minLength: 1
+    Description:
+      nullable: true
+      type: string
+      minLength: 1
