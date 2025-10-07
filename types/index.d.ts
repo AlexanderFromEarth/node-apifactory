@@ -1,5 +1,6 @@
 import {type LogFn} from 'pino';
 import {type RedisClientPoolType} from 'redis';
+import {type Db as Mongo} from 'mongodb';
 
 export default function app(): Promise<void>;
 
@@ -43,6 +44,7 @@ export interface Modules extends Record<string, (...args: any[]) => any> {
   events: <Obj extends Record<string, object>>() => {
     [K in keyof Obj]: (params: Obj[K]) => Promise<void>
   };
+  mongo: (name: string) => Mongo;
 }
 
 interface Id {

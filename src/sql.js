@@ -4,7 +4,7 @@ import mysql from 'mysql2';
 import sqlite from 'better-sqlite3';
 
 export function make({env}) {
-  const dbs = env().getByPostfix('databaseUrl');
+  const dbs = env().getByPostfix('sqlUrl');
   const result = {};
 
   for (const name in dbs) {

@@ -8,6 +8,7 @@ import * as logger from './logging.js';
 import * as redis from './redis.js';
 import * as sql from './sql.js';
 import * as ids from './ids.js';
+import * as mongo from './mongo.js';
 
 export async function load(modulesPath, modules) {
   const modulesDir = path.join(process.cwd(), modulesPath);
@@ -20,6 +21,7 @@ export async function load(modulesPath, modules) {
   modules[redis.name] = redis;
   modules[sql.name] = sql;
   modules[ids.name] = ids;
+  modules[mongo.name] = mongo;
 
   if (hasModules) {
     for (const filename of await fs.readdir(modulesDir)) {

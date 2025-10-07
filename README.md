@@ -224,10 +224,12 @@ SERVICES_PATH=./services
 MODULES_PATH=./modules
 # Sets global log level
 LOG_LEVEL=info
-# Sets database connection url, prefix before _DATABASE_URL used as name of connection
-PREFIX_DATABASE_URL=
+# Sets SQL connection url, prefix before _SQL_URL used as name of connection
+PREFIX_SQL_URL=
 # Sets redis connection url, prefix before _REDIS_URL used as name of connection
 PREFIX_REDIS_URL=
+# Sets mongo connection url, prefix before _MONGO_URL used as name of connection
+PREFIX_MONGO_URL=
 # Sets path to root of OpenAPI specification
 HTTP_SPEC_PATH=./openapi.yml
 # Sets HTTP log level
