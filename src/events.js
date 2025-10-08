@@ -57,6 +57,7 @@ export async function load(services, settings) {
     switch (server.protocol) {
       case 'redis': {
         server.instance = {
+          _handlerByTopic: new Map(),
           _producer: redis.createClient({
             url: server.url,
             RESP: Number(server.protocolVersion || '2')
@@ -70,8 +71,12 @@ export async function load(services, settings) {
             server.instance._consumer.connect(),
           ]),
           publish: (topic, message) => server.instance._consumer.publish(topic, message),
-          subscribe: (topic, handler) => server.instance._consumer.subscribe(topic, handler),
-          listen: () => {},
+          subscribe: (topic, handler) => server.instance._handlerByTopic.has(topic) ?
+            server.instance._handlerByTopic.get(topic).push(handler) :
+            server.instance._handlerByTopic.set(topic, [handler]),
+          listen: () => server.instance._consumer
+            .subscribe(Array.from(server.instance._handlerByTopic.keys()), (message, topic) =>
+              Promise.all(server.instance._handlerByTopic.get(topic)?.map((handle) => handle(message)))),
           close: () => Promise.all([
             server.instance._producer.close(),
             server.instance._consumer.close(),
@@ -85,23 +90,30 @@ export async function load(services, settings) {
         }
 
         server.instance = {
+          _handlerByTopic: new Map(),
           connect: () => amqplib.connect(server.url)
             .then((client) => { server.instance._client = client })
             .then(() => Promise.all([
               server.instance._client.createChannel()
-                .then((channel) => { server.instance._pubChannel = channel }),
+                .then((channel) => { server.instance._producer = channel }),
               server.instance._client.createChannel()
-                .then((channel) => { server.instance._subChannel = channel })
+                .then((channel) => { server.instance._consumer = channel })
             ])),
-          publish: (topic, message) => server.instance._pubChannel.publish(topic, '', Buffer.from(message)),
-          subscribe: (topic, handler) => server.instance._subChannel.consume(topic, async(msg) => {
-            await server.instance._subChannel.ack(msg);
-            await handler(msg.content.toString());
-          }),
-          listen: () => {},
+          subscribe: (topic, handler) => server.instance._handlerByTopic.has(topic) ?
+            server.instance._handlerByTopic.get(topic).push(handler) :
+            server.instance._handlerByTopic.set(topic, [handler]),
+          publish: (topic, message) => server.instance._producer.publish(topic, '', Buffer.from(message)),
+          listen: () => Promise.all(Array.from(server.instance._handlerByTopic, ([topic, handlers]) =>
+            server.instance._consumer.consume(topic, async(message) => {
+              await server.instance._consumer.ack(message);
+
+              const msg = message.content.toString();
+
+              await Promise.all(handlers.map((handle) => handle(msg)));
+            }))),
           close: () => Promise.all([
-            server.instance._pubChannel.close(),
-            server.instance._subChannel.close()
+            server.instance._producer.close(),
+            server.instance._consumer.close()
           ]).then(() => server.instance._client?.close())
         };
         break;
@@ -119,17 +131,19 @@ export async function load(services, settings) {
             server.instance._consumer.connect()
           ]),
           publish: (topic, message) => server.instance._producer.send({topic, messages: [{value: message}]}),
-          subscribe: (topic, handler) => server.instance._consumer.subscribe({topic})
-            .then(() => server.instance._handlerByTopic.has(topic) ?
-              server.instance._handlerByTopic.get(topic).push(handler) :
-              server.instance._handlerByTopic.set(topic, [handler])),
-          listen: () => server.instance._consumer.run({
-            eachMessage: ({topic, message: {value}}) => {
-              const msg = value?.toString();
+          subscribe: (topic, handler) => server.instance._handlerByTopic.has(topic) ?
+            server.instance._handlerByTopic.get(topic).push(handler) :
+            server.instance._handlerByTopic.set(topic, [handler]),
+          listen: () => server.instance._consumer
+            .subscribe({topics: Array.from(server.instance._handlerByTopic.keys())})
+            .then(() => server.instance._consumer.run({
+              eachMessage: ({topic, message: {value}}) => {
+                const msg = value?.toString();
 
-              return Promise.all(server.instance._handlerByTopic.get(topic)?.map((handle) => handle(msg)))
-            }
-          }),
+                return Promise.all(server.instance._handlerByTopic.get(topic)
+                  ?.map((handle) => handle(msg)))
+              }
+            })),
           close: () => Promise.all([
             server.instance._consumer.disconnect(),
             server.instance._producer.disconnect()
@@ -159,7 +173,6 @@ export async function load(services, settings) {
   const serverConnectors = new Map();
   const senderServers = new Map();
   const sender = {};
-  const listenPromises = [];
 
   for (const operationId in operations) {
     const operation = operations[operationId];
@@ -179,7 +192,7 @@ export async function load(services, settings) {
         });
       }
       if (operation.action === 'receive') {
-        listenPromises.push(() => server.instance.subscribe(channel.address, async(rawMessage) => {
+        server.instance.subscribe(channel.address, async(rawMessage) => {
           operationLogger.info('incoming message');
 
           const service = services[operationId];
@@ -221,7 +234,7 @@ export async function load(services, settings) {
           } catch(e) {
             operationLogger.error(`Runtime error: ${e?.stack ?? e?.message ?? e}`);
           }
-        }));
+        });
       } else if (operation.action === 'send') {
         if (!sender[operationId]) {
           senderServers.set(operationId, [server.instance]);
@@ -271,12 +284,11 @@ export async function load(services, settings) {
   return {
     receiver: {
       run: async() => {
-        await Promise.all(Array.from(serverConnectors.values()).map(({connect}) => connect()));
-        await Promise.all(listenPromises.map((listen) => listen()));
-        await Promise.all(Array.from(serverConnectors.values()).map(({listen}) => listen()));
+        await Promise.all(Array.from(serverConnectors.values(), ({connect, listen}) =>
+          Promise.resolve(connect()).then(() => listen)));
       },
       dispose: async() => {
-        await Promise.all(Array.from(serverConnectors.values()).map(({close}) => close()));
+        await Promise.all(Array.from(serverConnectors.values(), ({close}) => close()));
       }
     },
     sender
