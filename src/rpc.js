@@ -24,10 +24,11 @@ export async function load(services, settings) {
 
   const registerServers = (servers) => {
     let idx = 0;
+    const toRemove = [];
 
     for (const server of servers) {
       if (!server.url) {
-        servers.splice(idx, 1);
+        toRemove.push(idx);
         continue;
       }
 
@@ -41,7 +42,7 @@ export async function load(services, settings) {
       }
 
       if (!isEvery) {
-        servers.splice(idx, 1);
+        toRemove.push(idx);
         continue;
       }
 
@@ -54,7 +55,7 @@ export async function load(services, settings) {
       }
 
       if (serverByUrl.has(server.url)) {
-        servers.splice(idx, 1);
+        toRemove.push(idx);
         continue;
       }
 
@@ -116,6 +117,10 @@ export async function load(services, settings) {
           reply.send({id, jsonrpc, error: {code: -32603, message: 'Internal error'}});
         }
       });
+    }
+
+    for (const idx of toRemove) {
+      servers.splice(servers.length - idx - 1, 1);
     }
   };
 
