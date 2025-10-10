@@ -230,6 +230,14 @@ PREFIX_SQL_URL=
 PREFIX_REDIS_URL=
 # Sets mongo connection url, prefix before _MONGO_URL used as name of connection
 PREFIX_MONGO_URL=
+# Sets s3 bucket, prefix before _S3_BUCKET used as name of "connection"
+PREFIX_S3_BUCKET=
+# Sets s3 region for "connection" with prefix name if configured
+PREFIX_S3_REGION=
+# Sets s3 access key id for "connection" with prefix name if configured
+PREFIX_S3_ACCESS_KEY_ID=
+# Sets s3 access key secret for "connection" with prefix name if configured
+PREFIX_S3_ACCESS_KEY_SECRET=
 # Sets path to root of OpenAPI specification
 HTTP_SPEC_PATH=./openapi.yml
 # Sets HTTP log level

@@ -1,6 +1,14 @@
 import {type LogFn} from 'pino';
 import {type RedisClientPoolType} from 'redis';
 import {type Db as Mongo} from 'mongodb';
+import {
+  PutObjectCommandInput,
+  PutObjectCommandOutput,
+  DeleteObjectCommandInput,
+  DeleteObjectCommandOutput,
+  GetObjectCommandInput,
+  GetObjectCommandOutput
+} from '@aws-sdk/client-s3';
 
 export default function app(): Promise<void>;
 
@@ -45,6 +53,11 @@ export interface Modules extends Record<string, (...args: any[]) => any> {
     [K in keyof Obj]: (params: Obj[K]) => Promise<void>
   };
   mongo: (name: string) => Mongo;
+  s3: (name: string) => {
+    putObject(arg: Omit<PutObjectCommandInput, 'Bucket'>): Promise<PutObjectCommandOutput>;
+    getObject(arg: Omit<GetObjectCommandInput, 'Bucket'>): Promise<GetObjectCommandInput>;
+    deleteObject(arg: Omit<DeleteObjectCommandInput, 'Bucket'>): Promise<DeleteObjectCommandOutput>;
+  };
 }
 
 interface Id {

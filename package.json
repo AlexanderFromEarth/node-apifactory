@@ -20,14 +20,17 @@
   },
   "dependencies": {
     "@apidevtools/json-schema-ref-parser": "13.0.3",
+    "@aws-sdk/client-s3": "3.907.0",
     "ajv": "8.17.1",
     "amqplib": "0.10.9",
     "better-sqlite3": "12.2.0",
     "fastify": "5.3.3",
+    "i": "0.3.7",
     "kafkajs": "2.2.4",
     "kysely": "0.28.4",
     "mongodb": "6.20.0",
     "mysql2": "3.14.3",
+    "npm": "11.6.2",
     "pg": "8.16.3",
     "pino": "9.8.0",
     "redis": "5.8.0"
