@@ -1,6 +1,6 @@
 {
   "name": "node-apifactory",
-  "version": "0.19.2",
+  "version": "0.19.3",
   "description": "Web framework for API-first development via OpenAPI specification with included validation according to OpenAPI based on fastify and @apidevtools/json-schema-ref-parser.",
   "license": "MIT",
   "author": {
@@ -22,6 +22,7 @@
     "@apidevtools/json-schema-ref-parser": "13.0.3",
     "@aws-sdk/client-s3": "3.907.0",
     "ajv": "8.17.1",
+    "ajv-formats": "3.0.1",
     "amqplib": "0.10.9",
     "better-sqlite3": "12.2.0",
     "fastify": "5.3.3",

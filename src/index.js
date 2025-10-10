@@ -3,6 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import Ajv from 'ajv/dist/2020.js';
+import {default as addFormats} from 'ajv-formats';
 
 import * as http from './http.js';
 import * as rpc from './rpc.js';
@@ -21,6 +22,8 @@ export default async function app() {
     coerceTypes: true,
     useDefaults: true
   });
+
+  addFormats(ajv);
 
   const appModules = {};
   const appServices = {};
