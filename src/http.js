@@ -27,7 +27,7 @@ export async function load(services, settings) {
 
     for (const server of servers) {
       if (!server.url) {
-        toRemove.push(idx);
+        toRemove.push(idx++);
         continue;
       }
 
@@ -41,7 +41,7 @@ export async function load(services, settings) {
       }
 
       if (!isEvery) {
-        toRemove.push(idx);
+        toRemove.push(idx++);
         continue;
       }
 
@@ -54,7 +54,7 @@ export async function load(services, settings) {
       }
 
       if (serverByUrl.has(server.url)) {
-        toRemove.push(idx);
+        toRemove.push(idx++);
         continue;
       }
 
@@ -90,8 +90,8 @@ export async function load(services, settings) {
       });
     }
 
-    for (const idx of toRemove) {
-      servers.splice(servers.length - idx - 1, 1);
+    for (let idx = toRemove.length - 1; idx >= 0; idx--) {
+      servers.splice(toRemove[idx], 1);
     }
   };
 
