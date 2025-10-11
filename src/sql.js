@@ -3,7 +3,7 @@ import pg from 'pg';
 import mysql from 'mysql2';
 import sqlite from 'better-sqlite3';
 
-export function make({env}) {
+export function make({env}, {isResult, success}) {
   const dbs = env().getByPostfix('sqlUrl');
   const result = {};
 
@@ -53,22 +53,44 @@ export function make({env}) {
       return {
         query: (query, ...args) => kysely.sql(query, ...args)
           .execute(result[name])
-          .then(({rows}) => rows),
+          .then(({rows}) => success(rows)),
         raw: (query, ...args) => kysely.sql(query, ...args),
         transaction: async(arg) => {
-          if (Array.isArray(arg)) {
-            await result[name].transaction().execute(async(trx) => {
-              for (const query of arg) {
-                await query.execute(trx);
+          try {
+            return await result[name].transaction().execute(async(trx) => {
+              if (Array.isArray(arg)) {
+                for (const query of arg) {
+                  const res = await query.execute(trx);
+
+                  if (isResult(res) && !res.success) {
+                    throw res;
+                  }
+                }
+
+                return success();
+              } else {
+                const res = await arg({
+                  query: (query, ...args) => kysely.sql(query, ...args)
+                    .execute(trx)
+                    .then(({rows}) => rows),
+                  raw: (query, ...args) => kysely.sql(query, ...args)
+                });
+
+                if (isResult(res) && !res.success) {
+                  throw res;
+                } else if (isResult(res)) {
+                  return res;
+                } else {
+                  return success(res);
+                }
               }
             });
-          } else {
-            return await result[name].transaction().execute(async(trx) => await arg({
-              query: (query, ...args) => kysely.sql(query, ...args)
-                .execute(trx)
-                .then(({rows}) => rows),
-              raw: (query, ...args) => kysely.sql(query, ...args)
-            }));
+          } catch (err) {
+            if (isResult(err)) {
+              return err;
+            }
+
+            throw err;
           }
         }
       };

@@ -55,7 +55,7 @@ export interface Modules extends Record<string, (...args: any[]) => any> {
   mongo: (name: string) => Mongo;
   s3: (name: string) => {
     putObject(arg: Omit<PutObjectCommandInput, 'Bucket'>): Promise<PutObjectCommandOutput>;
-    getObject(arg: Omit<GetObjectCommandInput, 'Bucket'>): Promise<GetObjectCommandInput>;
+    getObject(arg: Omit<GetObjectCommandInput, 'Bucket'>): Promise<GetObjectCommandOutput>;
     deleteObject(arg: Omit<DeleteObjectCommandInput, 'Bucket'>): Promise<DeleteObjectCommandOutput>;
   };
 }
@@ -91,4 +91,5 @@ export interface Result {
   alreadyExists(entityType: string, entityId: string): {success: false, error: Error};
   deleted(entityType: string, entityId: string): {success: false, error: Error};
   error(message: string): {success: false, error: Error};
+  isResult(obj: any): obj is {success: true, payload: any} | {success: false, error: Error};
 }

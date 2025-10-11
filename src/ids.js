@@ -18,7 +18,7 @@ function calculateChecksum(buffer) {
   return checksumChars[Math.abs(checksum)];
 }
 
-export function make({env}) {
+export function make({env}, {invalid, success}) {
   const idLength = Number(env().get('idLength', '24'));
   const cacheSize = Number(env().get('cacheSize', '500'));
   const cacheLength = idLength * cacheSize;
@@ -48,7 +48,7 @@ export function make({env}) {
         checksum = payload[payload.length - 1];
 
         if (calculateChecksum(Buffer.from(value, 'ascii')) !== checksum) {
-          throw {success: false, error: {code: 'invalid', message: 'invalid parameters passed'}};
+          return invalid();
         }
       } else if (
         typeof payload === 'object' &&
@@ -61,17 +61,19 @@ export function make({env}) {
         throw new Error('invalid payload');
       }
 
-      return {
+      return success({
+        value,
+        checksum,
         valueOf() {
-          return value;
+          return this.value;
         },
         toString() {
-          return value + checksum;
+          return this.value + this.checksum;
         },
         toJSON() {
-          return value + checksum;
+          return this.value + this.checksum;
         }
-      };
+      });
     },
   };
 }
