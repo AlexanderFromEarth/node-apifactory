@@ -9,6 +9,7 @@ import * as redis from './redis.js';
 import * as sql from './sql.js';
 import * as ids from './ids.js';
 import * as mongo from './mongo.js';
+import * as s3 from './s3.js';
 
 export async function load(modulesPath, modules) {
   const modulesDir = path.join(process.cwd(), modulesPath);
@@ -22,6 +23,7 @@ export async function load(modulesPath, modules) {
   modules[sql.name] = sql;
   modules[ids.name] = ids;
   modules[mongo.name] = mongo;
+  modules[s3.name] = s3;
 
   if (hasModules) {
     for (const filename of await fs.readdir(modulesDir)) {
